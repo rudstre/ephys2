@@ -1,0 +1,11 @@
+- input.intan_ofps:
+    sessions: SET_ME 
+    batch_size: 500
+    batch_overlap: 0
+    datetime_pattern: '*'
+    aux_channels:
+        - digital_in: SET_ME # Any of 0-15
+          name: SET_ME # Saved to your session folder
+        - analog_in: SET_ME # Any of 1-6
+          name: SET_ME # Saved to your session folder
+          downsample: 1 # Number of samples to drop between successive values

@@ -1,0 +1,14 @@
+# Copy RHD into VectorSignal format
+
+- input.rhd64:
+    sessions: SET_ME 
+    batch_size: 1000
+    batch_overlap: 0
+    sampling_rate: 30000
+    datetime_pattern: '*'
+    aux_channels: []
+- checkpoint:
+    file: SET_ME 
+    batch_size: 1000 
+    batch_overlap: 0
+    

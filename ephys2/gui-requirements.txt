@@ -1,0 +1,6 @@
+libgl1-mesa-dev; sys_platform == 'win32'
+PyQT6 
+pyqtgraph 
+shapely
+seaborn
+matplotlib

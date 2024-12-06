@@ -1,0 +1,40 @@
+# Extract LFPs by decimating
+# ==========================
+
+# 0. Input: ensure the batch_size is a multiple of the total downsampling factor (in this case, 100)
+# Also, ensure the sampling rate is a multiple of the total downsampling factor.
+
+- input.rhd2000:
+    sessions: /n/holylfs02/LABS/olveczky_lab/Anand/data/r4_210612_195804.rhd # Path to RHD file
+    datetime_pattern: "*_%y%m%d_%H%M%S" # Pattern to extract timestamps from the filenames (ensure to put in double-quotes; simply pass "*" to ignore patterns) - this ensures a consistent sample index across multiple files
+    batch_size: 450000 # Processing batch size 
+    batch_overlap: 0 
+    aux_channels: []
+
+# 1. Decimate five-fold twice by fourth-order Chebyshev Type I filter
+
+- preprocess.decimate:
+    order: 4 # Filter order (increase to obtain better filter response, at the expense of performance and numerical stability)
+    factor: 5 # Downsampling factor
+    type: iir # Filter type, infinite impulse response (iir) or finite impulse response (fir)
+
+- preprocess.decimate:
+    order: 4 # Filter order (increase to obtain better filter response, at the expense of performance and numerical stability)
+    factor: 5 # Downsampling factor
+    type: iir # Filter type, infinite impulse response (iir) or finite impulse response (fir)
+
+# 2. Decimate once more four-fold to obtain total 100x downsampling
+
+- preprocess.decimate:
+    order: 4 # Filter order (increase to obtain better filter response, at the expense of performance and numerical stability)
+    factor: 4 # Downsampling factor
+    type: iir # Filter type, infinite impulse response (iir) or finite impulse response (fir)
+
+# 3. Data is saved in HDF5 as two arrays, "time" and "data" with the latter an N (samples) x M (channels) array
+
+- checkpoint:
+    file: /n/holylfs02/LABS/olveczky_lab/Anand/data/r4_210612_195804_lfp.h5 # 
+    batch_size: 100000 # Ensure this is a multiple of the following overlap 
+    batch_overlap: 50000 # Since of overlapping instances of clustering
+
+

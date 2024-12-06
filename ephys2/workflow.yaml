@@ -1,0 +1,88 @@
+# Link & label using ISO-SPLIT
+# ============================
+
+- input.rhd2000:
+    sessions: 
+        - /mnt/z/Lab/ephys2/raw_data/r4/r4_210730_195804.rhd
+    datetime_pattern: "*_%y%m%d_%H%M%S"
+    batch_size: 100000 # Number of samples to load into memory (upper-bounded by stop_sample - stop_sample)
+    batch_overlap: 0 # Allows detection of spikes up to the batch boundary
+    aux_channels: # Record the aux channel data (pass [] to skip)
+        - digital_in: [15] # Any of 0-15
+          name: digital_in.h5 # Saved to each session folder above
+
+- preprocess.bandpass:
+    order: 4 # Filter order (increase to obtain better filter response, at the expense of performance and numerical stability)
+    highpass: 300 # Highpass filter frequency (Hz)
+    lowpass: 7500 # Lowpass filter frequency (Hz)
+    Rp: 0.2 # Maximum ripple in the passband (dB)
+    Rs: 100 # Minimum attenuation in the stopband (dB)
+    type: ellip # Filter type (options: `ellip`, `cheby1`, `cheby2`), see https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.iirdesign.html
+    padding_type: odd # Signal extension method (others supported: `odd`, `even`)
+    padding_length: 1000 # Edge padding
+
+- preprocess.median_filter:
+    group_size: 64 # Contiguous channel group size to take median
+    ignore_channels: [] # Channels (zero-indexed) to drop from median calculation 
+
+- transform.clip: # Clip the signal at +- 0.005v to prevent large artifacts from destabilizing the clustering
+    low: -5000 # uV
+    high: 5000 # uV
+
+- snippet.fast_threshold:
+    snippet_length: 64 # Snippet length
+    detect_threshold: 50 # Detection threshold (microvolts)
+    return_threshold: 20 # Return threshold (microvolts)
+    return_samples: 5 # Minimum return time (# samples)
+    n_channels: 4 # Number of channels per channel group
+
+- checkpoint:
+    file: /mnt/z/Lab/ephys2/processed_data/test.h5 # Clustered snippets are stored as a single HDF5 file
+    batch_size: 100000 # Batch size determines chunking for next stage; set this to inf to cluster over the whole dataset (warning: N^2 operation)
+    batch_overlap: 50000 
+
+- label:
+    transform:
+        - beta_multiply:
+            beta: 100
+        - wavelet_denoise:
+            wavelet: sym2 # Wavelet used in discrete wavelet transform prior to PCA. For options, see http://wavelets.pybytes.com/
+    cluster:
+        isosplit:
+            n_components: 10 # No. PCA components to use for clustering
+            isocut_threshold: 0.8
+            min_cluster_size: 8 # Minimum cluster size to consider splitting
+            K_init: 200 # Over-clustering initialization
+            refine_clusters: False 
+            max_iterations_per_pass: 500
+            jitter: 0.001 # Additive elementwise Gaussian noise to separate duplicate vectors
+    link:
+        isosplit: # Link using the ISO-SPLIT cluster split test
+            n_components: 10 # No. PCA components to use for clustering
+            isocut_threshold: 0.8
+            min_cluster_size: 8 # Minimum cluster size to consider splitting
+            K_init: 200 # Over-clustering initialization
+            refine_clusters: False 
+            max_iterations_per_pass: 500
+            jitter: 0.001 # Additive elementwise Gaussian noise to separate duplicate vectors
+            max_cluster_uses: 1 # Maximum number of times a cluster can be used in a link (normally 1, but increase to correct for cluster split errors)
+    n_channels: 4 # Number of channels represented in each snippet (in this case, tetrode)
+    link_in_feature_space: true
+
+- checkpoint:
+    file: /mnt/z/Lab/ephys2/processed_data/test2.h5 # Clustered snippets are stored as a single HDF5 file
+    batch_size: 100000 # Batch size determines chunking for next stage
+    batch_overlap: 50000
+
+- postprocess.summarize:
+    downsample_ratio: 500
+    downsample_data_method: mean
+    downsample_time_method: median
+    isi_subsamples: 10
+
+- checkpoint:
+    file: /mnt/z/Lab/ephys2/processed_data/test3.h5 # Clustered snippets are stored as a single HDF5 file
+    batch_size: 50000 # Batch size determines chunking for next stage
+    batch_overlap: 0 
+
+- postprocess.label_noise_clusters # Auto-label clusters as noisy for GUI using class-averages computed in batches of 100000

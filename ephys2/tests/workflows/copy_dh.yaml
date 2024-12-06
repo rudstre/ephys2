@@ -1,0 +1,13 @@
+
+- input.synthetic.dhawale.spikes:
+    directory: SET_ME
+    channel_groups: [0]
+    start: 0
+    stop: inf
+    batch_size: 100
+    batch_overlap: 0
+
+- checkpoint:
+    file: SET_ME 
+    batch_size: 1000 
+    batch_overlap: 0    

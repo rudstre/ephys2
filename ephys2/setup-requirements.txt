@@ -1,0 +1,11 @@
+setuptools
+wheel
+scikit-build
+cmake
+ninja
+cython
+pybind11
+pytest>=7.0.1
+pytest-repeat
+pkgconfig
+xgboost==1.6.2

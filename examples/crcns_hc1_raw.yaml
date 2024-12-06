@@ -1,0 +1,23 @@
+# Copy a CRCNS-HC1 dataset into an HDF5 dataset
+# =============================================
+
+- input.crcns_hc1:
+    dataset: d5331 # See https://crcns.org/data-sets/hc/hc-1/about for available datasets
+    session: '01' # Which session to use from the dataset
+    ec_channels: [0, 1, 2, 3, 4, 5, 6, 7] # Channels corresponding to extracellular measurements
+    ic_channel: 5
+    ic_threshold: 50  # Absolute threshold for detection of intracellular spike (uV)
+    ic_refractory: 2 # Refractory period for detection (ms)
+    ic_highpass: 250
+    data_directory: /n/holylfs02/LABS/olveczky_lab/Anand/data/crcns_hc1 # Directory to download data to (should exist)
+    crcns_username: YOUR_USERNAME # A CRCNS account is required, see https://crcns.org/register
+    crcns_password: YOUR_PASSWORD
+    ground_truth_output: /Users/anandsrinivasan/dev/fasrc/data/hc1_gt.h5
+    # start: 0
+    # stop: inf
+    batch_size: 100000
+
+- checkpoint:
+    file: /n/holylfs02/LABS/olveczky_lab/Anand/data/hc1_signals.h5 # Clustered snippets are stored as a single HDF5 file
+    batch_size: 1000 # Batch size determines chunking for next stage; since this is the last step, this has no effect.
+    batch_overlap: 0

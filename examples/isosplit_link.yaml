@@ -1,0 +1,73 @@
+# Link & label using ISO-SPLIT
+# ============================
+
+- input.rhd2000:
+    sessions: /n/holylfs02/LABS/olveczky_lab/Anand/data/r4_210612_195804.rhd # Path to RHD file
+    datetime_pattern: "*_%y%m%d_%H%M%S" # Pattern to extract timestamps from the filenames (ensure to put in double-quotes; simply pass "*" to ignore patterns) - this ensures a consistent sample index across multiple files
+    batch_size: 450000 # Processing batch size 
+    batch_overlap: 0 
+    aux_channels: []
+
+- preprocess.bandpass:
+    order: 4 # Filter order (increase to obtain better filter response, at the expense of performance and numerical stability)
+    highpass: 300 # Highpass filter frequency (Hz)
+    lowpass: 7500 # Lowpass filter frequency (Hz)
+    Rp: 0.2 # Maximum ripple in the passband (dB)
+    Rs: 100 # Minimum attenuation in the stopband (dB)
+    type: ellip # Filter type (options: `ellip`, `cheby1`, `cheby2`), see https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.iirdesign.html
+    padding_type: odd # Signal extension method (others supported: `odd`, `even`)
+    padding_length: 1000 # Edge padding
+
+- preprocess.median_filter:
+    group_size: 64 # Contiguous channel group size to take median
+    ignore_channels: [] # Channels (zero-indexed) to drop from median calculation 
+
+- preprocess.set_zero:
+    channels: [] # Channels (zero-indexed) to set to zero prior to snippeting stage (should likely be the same as ignore_channels above)
+
+- snippet.fast_threshold:
+    snippet_length: 64 # Snippet length
+    detect_threshold: 50 # Detection threshold (microvolts)
+    return_threshold: 20 # Return threshold (microvolts)
+    return_samples: 8 # Minimum return time (# samples)
+    n_channels: 4 # Number of channels per channel group
+
+- checkpoint:
+    file: /n/holylfs02/LABS/olveczky_lab/Anand/data/snippets.h5 # Snippets are stored as a single HDF5 file
+    batch_size: 1000 # Batch size determines chunking for next stage; set this to inf to cluster over the whole dataset (warning: N^2 operation)
+    batch_overlap: 0 
+
+- label:
+    transform:
+        - beta_multiply:
+            beta: 1
+        - wavelet_denoise:
+            wavelet: sym2 # Wavelet used in discrete wavelet transform prior to PCA. For options, see http://wavelets.pybytes.com/
+    cluster:
+        isosplit:
+            n_components: 10 # No. PCA components to use for clustering
+            isocut_threshold: 0.9
+            min_cluster_size: 8 # Minimum cluster size to consider splitting
+            K_init: 200 # Over-clustering initialization
+            refine_clusters: False 
+            max_iterations_per_pass: 500
+            jitter: 0.001 # Additive elementwise Gaussian noise to separate duplicate vectors
+    link:
+        isosplit: # Link using the ISO-SPLIT cluster split test
+            n_components: 10 # No. PCA components to use for clustering
+            isocut_threshold: 0.9
+            min_cluster_size: 8 # Minimum cluster size to consider splitting
+            K_init: 200 # Over-clustering initialization
+            refine_clusters: False 
+            max_iterations_per_pass: 500
+            jitter: 0.001 # Additive elementwise Gaussian noise to separate duplicate vectors
+            max_cluster_uses: 2 # Maximum number of times a cluster can be used in a link (normally 1, but increase to correct for cluster split errors)
+    n_channels: 4 # Number of channels represented in each snippet (in this case, tetrode)
+    link_in_feature_space: true
+
+- checkpoint:
+    file: /n/holylfs02/LABS/olveczky_lab/Anand/data/linked_snippets.h5 # Clustered snippets are stored as a single HDF5 file
+    batch_size: 100000 # Batch size determines chunking for next stage
+    batch_overlap: 0
+
+- postprocess.label_noise_clusters # Auto-label clusters as noisy for GUI using class-averages computed in batches of 100000

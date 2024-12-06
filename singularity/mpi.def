@@ -1,0 +1,116 @@
+Bootstrap: docker
+From: ghcr.io/mamba-org/micromamba:git-77b63de-jammy-cuda-12.2.2
+
+%files
+    ./singularity/h5py.patch /opt/patches/
+    ./singularity/hello_mpi.c /opt/test/
+    ./singularity/test_ph5.py /opt/test/
+    ./singularity/runscript.sh /opt/runscript.sh
+    ./ephys2/ /opt/ephys2
+
+%environment
+    # Point to OMPI binaries, libraries, man pages
+    # export OMPI_DIR=/opt/ompi
+    # export HDF5_DIR=/opt/hdf5
+    # export PATH="$OMPI_DIR/bin:$HDF5_DIR/bin:$PATH"
+    # export LD_LIBRARY_PATH="$OMPI_DIR/lib:$HDF5_DIR/lib:$LD_LIBRARY_PATH"
+    export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
+    export BUILD_LOGS="/var/log/build"
+    export N_PROCS=4
+    # export MANPATH="$OMPI_DIR/share/man:$MANPATH"
+
+%post -c /bin/bash
+    # tmp directory for building (not mounted on host machine by default unlike /tmp)
+    mkdir -m 777 -p /tmp-build
+
+    mkdir -p /opt
+
+    export BUILD_LOGS="/var/log/build"
+    export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
+
+    echo "PATH=$PATH"
+    echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+
+    mkdir -p $BUILD_LOGS
+
+    echo "Installing required packages..."
+    apt-get update
+    apt-get install -y wget git vim bash gcc g++ make file bzip2 zlib1g-dev | tee $BUILD_LOGS/1.apt-get.log
+
+    source /usr/local/bin/_activate_current_env.sh
+    micromamba activate base
+    micromamba install -q -y -c conda-forge python=3.12 numpy scipy matplotlib osqp cvxopt cython | tee $BUILD_LOGS/2.mamba-install.log
+
+    echo "Installing Open MPI"
+    # export OMPI_DIR=/opt/ompi
+    export OMPI_VERSION=5.0.2
+    export OMPI_URL="https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-$OMPI_VERSION.tar.bz2"
+    mkdir -p /tmp-build/ompi
+    
+    # Download ompi
+    cd /tmp-build/ompi
+    wget --no-verbose -O "openmpi-$OMPI_VERSION.tar.bz2" $OMPI_URL
+    tar -xf openmpi-$OMPI_VERSION.tar.bz2
+
+    echo "3.configure-opmi"
+    # Compile and install
+    cd openmpi-$OMPI_VERSION
+    ./configure --prefix=/usr/local | tee $BUILD_LOGS/3.configure-opmi.log 
+
+    echo "4.make-opmi" 
+    make -j $(nproc) all --no-print-directory | tee $BUILD_LOGS/4.make-opmi.log 
+    make install --no-print-directory
+
+    echo "5.pip-install"
+    pip install cython numpy pkgconfig | tee $BUILD_LOGS/5.pip-install.log
+
+    echo "6.pip-mpi4py"
+    export MPI4PY_VERSION=3.1.5
+    MPICC=$(which mpicc) pip install --no-binary=mpi4py mpi4py==$MPI4PY_VERSION | tee $BUILD_LOGS/6.pip-mpi4py.log
+
+    echo "### downloading hdf5"
+    # Download hdf5
+    mkdir -p /tmp-build/hdf5
+    export HDF5_VERSION="1.14.3"
+    export HDF5_URL="https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.14/hdf5-$HDF5_VERSION/src/hdf5-$HDF5_VERSION.tar.bz2"
+    cd /tmp-build/hdf5
+    wget --no-verbose -O hdf5-$HDF5_VERSION.tar.bz2 $HDF5_URL
+    tar -xf hdf5-$HDF5_VERSION.tar.bz2
+
+    # compile HDF5 
+    echo "7.configure-hdf5"
+    cd hdf5-$HDF5_VERSION
+    CC=$(which mpicc) ./configure --with-zlib=/usr/local --disable-fortran --prefix=/usr/local --enable-shared --enable-parallel | tee $BUILD_LOGS/7.configure-hdf5.log 
+    
+    echo "8.make-hdf5"
+    make -j $(nproc) --no-print-directory | tee $BUILD_LOGS/8.make-hdf5.log
+    make install --no-print-directory
+
+    echo "9.h5py-patch"
+    # Download specific branch of h5py (3.10 release version doesn't work with py>3.11)
+    cd /tmp-build
+    git clone https://github.com/h5py/h5py.git
+    cd /tmp-build/h5py
+    echo "TEMP: git status" && git status | tee $BUILD_LOGS/9.h5py-patch.log
+    git checkout 102698165a0013c0ebc25d517a606820f2dcdc4d
+
+    # patch bump mpi4py version to 3.1.5
+    git apply /opt/patches/h5py.patch
+
+    echo "10.build-h5py"
+    HDF5_MPI="ON" MPICC=`which mpicc` CC=`which mpicc` HDF5_DIR=/usr/local pip install --no-cache-dir --no-binary=h5py . | tee $BUILD_LOGS/10.build-h5py.log
+
+    echo "### removing-build-dir"
+    rm -rf /tmp-build
+
+    cd /opt/ephys2
+    echo "11.ephys2-pip-requirements" 
+    pip install -r setup-requirements.txt | tee $BUILD_LOGS/11.ephys2-pip-requirements.log
+
+    echo "12.ephys2-install"
+    pip install . | tee $BUILD_LOGS/12.ephys2-install.log
+
+
+%runscript
+    micromamba run -n base /opt/runscript.sh $@
+

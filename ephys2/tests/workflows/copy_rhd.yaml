@@ -1,0 +1,13 @@
+# Copy RHD into VectorSignal format
+
+- input.rhd2000:
+    sessions: SET_ME 
+    batch_size: 1000
+    batch_overlap: 0
+    datetime_pattern: '*'
+    aux_channels: []
+- checkpoint:
+    file: SET_ME 
+    batch_size: 1000 
+    batch_overlap: 0
+    

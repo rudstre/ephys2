@@ -1,0 +1,41 @@
+# Snippet, compress, and label an RHD file
+
+- input.synthetic.mearec.spikes:
+    templates_file: SET_ME
+    n_tetrodes: 3
+    n_units_per_tetrode: 8
+    min_firing_rate: 0.1 # Hz
+    max_firing_rate: 1.0 # Hz
+    refractory_period: 1.5 # ms
+    sampling_rate: 20000 # Hz
+    n_samples: 10000
+    batch_size: 100
+    noise_std: 1.0
+    seed: 0
+    ground_truth_output: SET_ME
+- checkpoint:
+    file: SET_ME # Directory containing output data
+    batch_size: 4000 # Batch size determines chunking for next stage
+    batch_overlap: 2000
+- label_old.isosplit_segfuse:
+    n_components: 10 # No. PCA components to use for clustering
+    wavelet: sym2 # Wavelet used in discrete wavelet transform prior to PCA. For options, see http://wavelets.pybytes.com/
+    beta: 1
+    n_channels: 4 # Number of channels represented in each snippet (in this case, tetrode)
+    isocut_threshold: 0.9
+    min_cluster_size: 8 # Minimum cluster size to consider splitting
+    K_init: 200 # Over-clustering initialization
+    refine_clusters: False 
+    max_iterations_per_pass: 500
+    jitter: 0.001 # Additive elementwise Gaussian noise to separate duplicate vectors
+    link_threshold: 0.0 # Threshold for linking two nodes across cluster trees (lower means more links)
+    link_sig_s: 0.005 # Sigmoidal scale parameter for link weights
+    link_sig_k: 0.03 # Sigmoidal offset parameter for link weights (higher means more links)
+- checkpoint:
+    file: SET_ME # Set this to the directory where you want to write output data (should exist and be writeable)
+    batch_size: 4000 # Batch size determines chunking for next stage; since this is the last step, this has no effect.
+    batch_overlap: 2000 
+- checkpoint:
+    file: SET_ME # Set this to the directory where you want to write output data (should exist and be writeable)
+    batch_size: 1000 # Batch size determines chunking for next stage; since this is the last step, this has no effect.
+    batch_overlap: 0

@@ -1,0 +1,19 @@
+# Store synthetically generated snippets
+
+- input.synthetic.mearec.spikes:
+    templates_file: SET_ME
+    n_tetrodes: 3
+    n_units_per_tetrode: 8
+    min_firing_rate: 0.1 # Hz
+    max_firing_rate: 1.0 # Hz
+    refractory_period: 1.5 # ms
+    sampling_rate: 20000 # Hz
+    n_samples: 10000
+    batch_size: 100
+    noise_std: 1.0
+    seed: 0
+    ground_truth_output: SET_ME
+- checkpoint:
+    file: SET_ME # Directory containing output data
+    batch_size: 1000 # Batch size determines chunking for next stage
+    batch_overlap: 0

@@ -1,0 +1,38 @@
+# Snippet Intan "one file per signal type" data
+# =============================================
+
+- input.intan_ofps:
+    sessions: /n/holylfs02/LABS/olveczky_lab/Anand/data/A049/A049_210528_140733 # Path to OFPS directory
+    datetime_pattern: "*_%y%m%d_%H%M%S" # Pattern to extract timestamps from the filenames (ensure to put in double-quotes; simply pass "*" to ignore patterns) - this ensures a consistent sample index across multiple files
+    batch_size: 450000 # Processing batch size 
+    batch_overlap: 0 
+    aux_channels: []
+
+- preprocess.bandpass:
+    order: 4 # Filter order (increase to obtain better filter response, at the expense of performance and numerical stability)
+    highpass: 300 # Highpass filter frequency (Hz)
+    lowpass: 7500 # Lowpass filter frequency (Hz)
+    Rp: 0.2 # Maximum ripple in the passband (dB)
+    Rs: 100 # Minimum attenuation in the stopband (dB)
+    type: ellip # Filter type (options: `ellip`, `cheby1`, `cheby2`), see https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.iirdesign.html
+    padding_type: odd # Signal extension method (others supported: `odd`, `even`)
+    padding_length: 1000 # Edge padding
+
+- preprocess.median_filter:
+    group_size: 64 # Contiguous channel group size to take median
+    ignore_channels: [] # Channels (zero-indexed) to drop from median calculation 
+
+- preprocess.set_zero:
+    channels: [] # Channels (zero-indexed) to set to zero prior to snippeting stage (should likely be the same as ignore_channels above)
+
+- snippet.fast_threshold:
+    snippet_length: 64 # Snippet length
+    detect_threshold: 50 # Detection threshold (microvolts)
+    return_threshold: 20 # Return threshold (microvolts)
+    return_samples: 8 # Minimum return time (# samples)
+    n_channels: 4 # Number of channels per channel group
+
+- checkpoint:
+    file: /n/holylfs02/LABS/olveczky_lab/Anand/data/A049_snippets.h5 # Snippets are stored as a single HDF5 file
+    batch_size: 1000 # Batch size determines chunking for next stage; since this is the last step, this has no effect.
+    batch_overlap: 0 

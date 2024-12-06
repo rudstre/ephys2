@@ -1,0 +1,25 @@
+# Label a previously snippeted dataset
+# ====================================
+
+- load:
+    files: /Users/asrvsn/dev/fasrc/olveczky-lab/data/mr_snippets.h5 # Path to snippets HDF5 file
+    start: 0
+    stop: inf # Sort all the data
+    batch_size: 10000 # Batch size determines chunking for next stage
+    batch_overlap: 5000 
+
+- label_old.spc_segfuse:
+    t_min: 0.00
+    t_max: 0.05
+    n_temps: 6
+    knn: 11
+    cycles: 300
+    metric: euclidean
+    link_threshold: 0.02 # Threshold for linking two nodes across cluster trees
+    link_sig_s: 0.005 # Sigmoidal scale parameter for link weights
+    link_sig_k: 0.03 # Sigmoidal offset parameter for link weights
+
+- checkpoint:
+    file: /n/holylfs02/LABS/olveczky_lab/Anand/data/r4_labeled_snippets.h5 # Clustered snippets are stored as a single HDF5 file
+    batch_size: 1000 # Batch size determines chunking for next stage; since this is the last step, this has no effect.
+    batch_overlap: 0 

@@ -1,0 +1,40 @@
+# Process a recording from the CRCNS-HC1 dataset
+# ==============================================
+
+- input.crcns_hc1:
+    dataset: d5331 # See https://crcns.org/data-sets/hc/hc-1/about for available datasets
+    session: '01' # Which session to use from the dataset
+    ec_channels: [0, 1, 2, 3, 4, 5, 6, 7] # Channels corresponding to extracellular measurements
+    ic_channel: 5
+    ic_threshold: 50  # Absolute threshold for detection of intracellular spike (uV)
+    ic_refractory: 2 # Refractory period for detection (ms)
+    ic_highpass: 250
+    data_directory: /n/holylfs02/LABS/olveczky_lab/Anand/data/crcns_hc1 # Directory to download data to (should exist)
+    crcns_username: YOUR_USERNAME # A CRCNS account is required, see https://crcns.org/register
+    crcns_password: YOUR_PASSWORD
+    ground_truth_output: /Users/anandsrinivasan/dev/fasrc/data/hc1_gt.h5
+    # start: 0
+    # stop: inf
+    batch_size: 100000
+
+- preprocess.bandpass:
+    order: 6 # Filter order
+    highpass: 300 # Highpass filter frequency (Hz)
+    lowpass: 7500 # Lowpass filter frequency (Hz)
+    Rp: 0.2 # Maximum ripple in the passband (dB)
+    Rs: 100 # Minimum attenuation in the stopband (dB)
+    type: ellip # Filter type
+    padding_type: odd # Signal extension method
+    padding_length: 1000 # Edge padding
+
+- preprocess.median_filter:
+    group_size: 4 # Contiguous channel group size to take median
+    ignore_channels: [] # Channels (zero-indexed) to drop from median calculation 
+
+- preprocess.set_zero:
+    channels: [] # Channels (zero-indexed) to set to zero prior to snippeting stage (should likely be the same as ignore_channels above)
+
+- checkpoint:
+    file: /n/holylfs02/LABS/olveczky_lab/Anand/data/hc1_signals.h5 # Clustered snippets are stored as a single HDF5 file
+    batch_size: 1000 # Batch size determines chunking for next stage; since this is the last step, this has no effect.
+    batch_overlap: 0

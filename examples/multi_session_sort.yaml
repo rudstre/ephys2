@@ -1,0 +1,80 @@
+# Sort multiple sessions & split the results into separate files
+# ==============================================================
+
+- input.rhd2000:
+    sessions: 
+        # Session 1 - a single file
+        - /path/to/single/file/session
+        # Session 2 - multiple files, using a pattern
+        - /path/to/multi/file/session/* 
+        # Session 3 - a single file, with start/stop parameters
+        - path: /Users/anandsrinivasan/dev/fasrc/data/r4_210612_195804.rhd 
+          start: 0 # Ensure these three fields are aligned
+          stop: 1000000
+        # Session 4 - multiple files, using explicit paths and optional start/stop declarations
+        - - path: /path/to/partial/file # Use nested hyphens to declare an explicit list of files for a session
+            start: 0
+            stop: inf
+          - /path/to/entire/file
+          - path: /path/to/file/from/beginning
+            start: 1000
+    datetime_pattern: "*_%y%m%d_%H%M%S"
+    batch_size: 100000 # Number of samples to load into memory (upper-bounded by stop_sample - stop_sample)
+    batch_overlap: 0 # Allows detection of spikes up to the batch boundary
+    aux_channels: # Record the aux channel data (pass [] to skip)
+        - digital_in: [15] # Any of 0-15
+          name: r4_digital_in.h5 # Saved to each session folder above
+        - analog_in: [1, 2, 3, 4, 5, 6] # Any of 1-6
+          name: r4_analog_in.h5 # Saved to each session folder above
+          downsample: 1000 # Number of samples to drop between successive values
+
+- preprocess.bandpass:
+    order: 4 # Filter order
+    highpass: 300 # Highpass filter frequency (Hz)
+    lowpass: 7500 # Lowpass filter frequency (Hz)
+    Rp: 0.2 # Maximum ripple in the passband (dB)
+    Rs: 100 # Minimum attenuation in the stopband (dB)
+    type: ellip # Filter type
+    padding_type: odd # Signal extension method
+    padding_length: 1000 # Edge padding
+
+- preprocess.median_filter:
+    group_size: 64 # Contiguous channel group size to take median
+    ignore_channels: [] # Channels to drop from median calculation
+
+- snippet.fast_threshold:
+    snippet_length: 64 # Snippet length
+    detect_threshold: 50 # Detection threshold (microvolts)
+    return_threshold: 20 # Return threshold (microvolts)
+    return_samples: 8 # Minimum return time (# samples)
+    n_channels: 4 # Number of channels per channel group
+
+- checkpoint:
+    file: /Users/anandsrinivasan/dev/fasrc/data/r4_snippets_multi.h5 # Snippets are stored as a single HDF5 file
+    batch_size: 100000 # Batch size determines chunking for next stage
+    batch_overlap: 50000 
+
+- label_old.isosplit_segfuse:
+    n_components: 10 # No. PCA components to use for clustering
+    wavelet: sym2 # Wavelet used in discrete wavelet transform prior to PCA. For options, see http://wavelets.pybytes.com/
+    beta: 1 # Weighting of spikes to exaggerate peak (1 = no effect, 10 = high effect)
+    n_channels: 4 # Number of channels represented in each snippet (in this case, tetrode)
+    isocut_threshold: 0.9 # Partition threshold; decrease to produce more clusters
+    min_cluster_size: 8 # Minimum cluster size to consider splitting
+    K_init: 200 # Over-clustering initialization (should be larger than max expected # units)
+    refine_clusters: False
+    max_iterations_per_pass: 500
+    jitter: 0.001 # Additive elementwise Gaussian noise to separate duplicate vectors
+    link_threshold: 0.02 # Threshold for linking two nodes across cluster trees (lower means more links)
+    link_sig_s: 0.005 # Sigmoidal scale parameter for link weights
+    link_sig_k: 0.03 # Sigmoidal offset parameter for link weights (higher means more links)
+
+- checkpoint:
+    file: /Users/anandsrinivasan/dev/fasrc/data/r4_linked_snippets_multi.h5 # Clustered snippets are stored as a single HDF5 file
+    batch_size: 1000 # Batch size determines chunking for next stage
+    batch_overlap: 0
+
+- finalize # Immediately finalize the data
+
+- postprocess.split_sessions: # Serialize data separately per-session
+    name: r4_labeled_snippets # The files will be written back to the directories of the original input data

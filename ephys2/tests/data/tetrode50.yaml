@@ -1,0 +1,34 @@
+# Default parameters for template generation
+
+
+# intracellular simulation settings
+sim_time: 1 # intracellular simulation time in s
+target_spikes: [3, 50]  # min-max number of spikes in sim_time
+cut_out: [2, 5]  # pre-post peak cut_out in ms
+dt: 0.05  # time step (2**-5) in ms (corresponds to 20kHz)
+delay: 10  # stimulation delay in ms
+weights: [0.25, 1.75]  # weights to multiply stimulus amplitude if number of spikes is above (0.25) or above (1.25)
+# target spikes
+
+# extracellular simulation settings
+rot: physrot # random rotation to apply to cell models (norot, physrot, 3drot)
+probe: tetrode # extracellular probe (if None probes are listed)
+ncontacts: 10 # number of contacts per recording site
+overhang: 30 # extension in um beyond MEA boundaries for neuron locations (if lim is null)
+offset: 0 # plane offset (um) for MEA
+xlim: [10,80] # limits ( low high ) for neuron locations in the x-axis (depth)
+ylim: null # limits ( low high ) for neuron locations in the y-axis
+zlim: null # limits ( low high ) for neuron locations in the z-axis
+min_amp: 50 # minimum amplitude for detection
+n: 50 # number of EAPs per cell model
+seed: 0 # random seed for positions and rotations
+
+drifting: False # if True, drifting templates are simulated
+max_drift: 100 # max distance from the initial and final cell position
+min_drift: 30  # min distance from the initial and final cell position
+drift_steps: 30 # number of drift steps
+drift_xlim: [-10, 10] # limits ( low high ) for neuron drift locations in the x-axis (depth)
+drift_ylim: [-10, 10] # limits ( low high ) for neuron drift locations in the y-axis (depth)
+drift_zlim: [30, 80] # limits ( low high ) for neuron drift locations in the z-axis (depth)
+check_for_drift_amp: False # If True, the drifted template final amplitude must be greater than min_amp
+drift_within_bounds: False # If True, the drifted template final position must be within xlim, ylim, zlim bounds

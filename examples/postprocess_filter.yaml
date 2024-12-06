@@ -1,0 +1,16 @@
+# Filter noisy units from a labeled file
+# ======================================
+
+- load:
+    files: /Users/asrvsn/dev/fasrc/olveczky-lab/data/mr_labeled_snippets_new.h5 # Path to snippets HDF5 file
+    start: 0
+    stop: inf # Process all the data
+    batch_size: 1000000 # Batch size determines chunking for next stage
+    batch_overlap: 0
+
+- postprocess.filter_noise_clusters # Note: this requires snippets to be 4 x 64-samples in length.
+
+- checkpoint:
+    file: /Users/anandsrinivasan/dev/fasrc/data/dh_labeled_filtered_snippets_isosplit.h5 # Snippets are stored as a single HDF5 file
+    batch_size: 1000 # Batch size determines chunking for next stage; since this is the last step, this has no effect.
+    batch_overlap: 0 

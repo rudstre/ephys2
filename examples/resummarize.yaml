@@ -1,0 +1,20 @@
+# Re-summarize a previously summarized dataset
+# ============================================
+
+- load:
+    files: /Users/asrvsn/dev/fasrc/olveczky-lab/data/mr_labeled_snippets_new.h5 # Path to snippets HDF5 file
+    start: 0
+    stop: inf # Sort all the data
+    batch_size: 100000 # Batch size determines chunking for next stage
+    batch_overlap: 50000 
+
+- postprocess.summarize:
+    downsample_ratio: 1000
+    downsample_data_method: mean
+    downsample_time_method: median
+    isi_subsamples: 10
+
+- checkpoint:
+    file: /n/holylfs02/LABS/olveczky_lab/Anand/data/summarized_linked_data.h5 # Pass the same filepath to over-write the summary
+    batch_size: 100000 # Batch size determines chunking for next stage
+    batch_overlap: 50000 

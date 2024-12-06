@@ -1,0 +1,24 @@
+/* hide the top link */
+div.sphx-glr-download-link-note {
+  height: 0px;
+  padding: 0;
+  margin: 0;
+  visibility: hidden;
+}
+
+/* hide the lower links */
+p.sphx-glr-timing {
+  height: 0px;
+  visibility: hidden;
+}
+
+div.sphx-glr-footer {
+  height: 0px;
+  visibility: hidden;
+}
+
+/* hide the lower code */
+div.highlight-default {
+  height: 0px;
+  visibility: hidden;
+}

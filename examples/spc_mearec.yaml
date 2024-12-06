@@ -1,0 +1,37 @@
+# Spike-sort a MEArec-generated spike train
+# =========================================
+
+- input.synthetic.mearec.spikes:
+    templates_file: /Users/anandsrinivasan/dev/fasrc/ephys2/ephys2/tests/data/templates_50_tetrode_18-02-2022_19-52.h5
+    ground_truth_output: /Users/anandsrinivasan/dev/fasrc/data/mr_gt.h5
+    n_tetrodes: 1
+    n_units_per_tetrode: 8
+    min_firing_rate: 0.1 # Hz
+    max_firing_rate: 1.0 # Hz
+    refractory_period: 1.5 # ms
+    sampling_rate: 20000 # Hz
+    n_samples: 100000
+    batch_size: 1000
+    noise_std: 1.0
+    seed: 0
+
+- checkpoint:
+    file: /Users/anandsrinivasan/dev/fasrc/data/mr_snippets.h5 # Snippets are stored as a single HDF5 file
+    batch_size: 1000 # Batch size determines chunking for next stage
+    batch_overlap: 0
+
+- label_old.spc_segfuse:
+    t_min: 0.00
+    t_max: 0.05
+    n_temps: 6
+    knn: 11
+    cycles: 300
+    metric: euclidean
+    link_threshold: 0.02 # Threshold for linking two nodes across cluster trees
+    link_sig_s: 0.005 # Sigmoidal scale parameter for link weights
+    link_sig_k: 0.03 # Sigmoidal offset parameter for link weights
+    
+- checkpoint:
+    file: /Users/anandsrinivasan/dev/fasrc/data/mr_labeled_snippets.h5 # Clustered snippets are stored as a single HDF5 file
+    batch_size: 1000 # Batch size determines chunking for next stage; since this is the last step, this has no effect.
+    batch_overlap: 0

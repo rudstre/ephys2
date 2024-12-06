@@ -1,0 +1,4 @@
+bokeh
+scikit-learn
+colorcet
+pandas

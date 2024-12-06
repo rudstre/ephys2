@@ -1,0 +1,2 @@
+# Synthetic waveform / signal generator based on Jeremy Magland's code
+See the [SpikeForest page](https://spikeforest.flatironinstitute.org/studyset/SYNTH_MAGLAND) and [GitHub source](https://github.com/magland/spikeforest/blob/master/gen_synth_datasets/8trode)

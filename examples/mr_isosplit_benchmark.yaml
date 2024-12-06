@@ -1,0 +1,55 @@
+# Spike-sort MEARec synthetic data using ISO-SPLIT
+# ================================================
+
+- input.synthetic.mearec.spikes:
+    templates_file: /Users/anandsrinivasan/dev/fasrc/ephys2/ephys2/tests/data/templates_50_tetrode_18-02-2022_19-52.h5
+    ground_truth_output: /Users/anandsrinivasan/dev/fasrc/data/mr_gt_isosplit.h5
+    n_tetrodes: 1
+    n_units_per_tetrode: 8
+    min_firing_rate: 0.1 # Hz
+    max_firing_rate: 1.0 # Hz
+    refractory_period: 1.5 # ms
+    sampling_rate: 20000 # Hz
+    n_samples: 26000
+    batch_size: 1000
+    noise_std: 0.4
+    seed: 0
+
+- checkpoint:
+    file: /Users/anandsrinivasan/dev/fasrc/data/mr_snippets_isosplit.h5 # Snippets are stored as a single HDF5 file
+    batch_size: 20000 # Batch size determines chunking for next stage
+    batch_overlap: 10000 # Allows merging of chains across batches
+
+- label_old.isosplit_segfuse:
+    n_components: 10 # No. PCA components to use for clustering
+    wavelet: sym2 # Wavelet used in discrete wavelet transform prior to PCA. For options, see http://wavelets.pybytes.com/
+    beta: 1
+    n_channels: 4 # Number of channels represented in each snippet (in this case, tetrode)
+    isocut_threshold: 0.9
+    min_cluster_size: 8 # Minimum cluster size to consider splitting
+    K_init: 200 # Over-clustering initialization
+    refine_clusters: False 
+    max_iterations_per_pass: 500
+    jitter: 0.001 # Additive elementwise Gaussian noise to separate duplicate vectors
+    link_threshold: 0.02 # Threshold for linking two nodes across cluster trees (lower means more links)
+    link_sig_s: 0.005 # Sigmoidal scale parameter for link weights
+    link_sig_k: 0.03 # Sigmoidal offset parameter for link weights (higher means more links)
+
+- checkpoint:
+    file: /Users/anandsrinivasan/dev/fasrc/data/mr_linked_snippets_isosplit.h5 # Clustered snippets are stored as a single HDF5 file
+    batch_size: 1000 # Give any batch size here
+    batch_overlap: 0 # No overlap required
+
+- finalize
+
+- checkpoint:
+    file: /Users/anandsrinivasan/dev/fasrc/data/mr_labeled_snippets_isosplit.h5 # Clustered snippets are stored as a single HDF5 file
+    batch_size: 1000 # Give any batch size here
+    batch_overlap: 0 # No overlap required
+
+- benchmark.extrinsic:
+    dataset_name: MEARec-8 # Given name for your dataset (used for comparison)
+    method_name: isosplit-segfuse # Given name for your spike-sorting method
+    output_file: /Users/anandsrinivasan/dev/fasrc/benchmarks_mr/mr_isosplit.json
+    ground_truth_data: /Users/anandsrinivasan/dev/fasrc/data/mr_gt_isosplit.h5
+    max_dt_ground_truth: 1 # ms

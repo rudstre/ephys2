@@ -1,0 +1,12 @@
+- input.rhd64:
+    sessions: SET_ME 
+    batch_size: 500
+    batch_overlap: 0
+    datetime_pattern: '*'
+    sampling_rate: 30000
+    aux_channels:
+        - digital_in: SET_ME # Any of 0-15
+          name: SET_ME # Saved to your session folder
+        - analog_in: SET_ME # Any of 1-3
+          name: SET_ME # Saved to your session folder
+          downsample: 1 # Number of samples to drop between successive values

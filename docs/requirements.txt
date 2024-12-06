@@ -1,0 +1,7 @@
+sphinx==4.5.0
+nbsphinx==0.8.8
+sphinx_rtd_theme==1.0.0
+myst-parser==0.17.2
+sphinx-gallery==0.10.1
+sphinx_design==0.1.0
+ephys2

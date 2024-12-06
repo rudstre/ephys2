@@ -1,0 +1,18 @@
+# Copy RHD into VectorSignal format
+
+- input.rhd2000:
+    sessions: SET_ME 
+    batch_size: 1000
+    batch_overlap: 0
+    datetime_pattern: '*'
+    aux_channels:
+        - digital_in: [15] # Any of 0-15
+          name: test_digital_in.h5 # Saved to your session folder
+        - analog_in: [1, 2, 3, 4, 5, 6] # Any of 1-6
+          name: test_analog_in.h5 # Saved to your session folder
+          downsample: 1000 # Number of samples to drop between successive values
+- checkpoint:
+    file: SET_ME 
+    batch_size: 1000 
+    batch_overlap: 0
+    

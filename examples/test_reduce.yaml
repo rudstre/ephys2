@@ -1,0 +1,8 @@
+# Example of a reduction stage
+# ============================
+
+- test.input.integers:
+    start: 0
+    stop: 100
+
+- test.reduce.average

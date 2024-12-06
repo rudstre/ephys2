@@ -1,0 +1,11 @@
+# Load previously sorted data & label noise clusters
+# ==================================================
+
+- load:
+    files: /Users/asrvsn/dev/fasrc/olveczky-lab/data/mr_labeled_snippets_new.h5 # Path to snippets HDF5 file
+    start: 0
+    stop: inf
+    batch_size: 100000 # Batch size determines chunking for next stage
+    batch_overlap: 0 # Allows merging of chains across batches
+
+- postprocess.label_noise_clusters # Auto-label clusters as noisy for GUI 

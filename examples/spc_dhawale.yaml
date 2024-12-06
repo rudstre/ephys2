@@ -1,0 +1,31 @@
+# Run the FAST algorithm on the Zenodo synthetic dataset
+# ======================================================
+
+- input.dhawale.spikes:
+    directory: /n/holylfs02/LABS/olveczky_lab/Ashesh/SimulatedData_drift/simulated drift tetrode dataset (full)
+    channel_groups: [0]
+    # start: 0
+    # stop: inf
+    batch_size: 1000
+    ground_truth_output: /n/holylfs02/LABS/olveczky_lab/Anand/data/dh_ground_truth.h5
+
+- checkpoint:
+    file: /n/holylfs02/LABS/olveczky_lab/Anand/data/dh_snippets.h5 # Snippets are stored as a single HDF5 file
+    batch_size: 1000 # Batch size determines chunking for next stage; set this to inf to cluster over the whole dataset (warning: N^2 operation)
+    batch_overlap: 0 
+
+- label_old.spc_segfuse:
+    t_min: 0.00
+    t_max: 0.05
+    n_temps: 6
+    knn: 11
+    cycles: 300
+    metric: euclidean
+    link_threshold: 0.02 # Threshold for linking two nodes across cluster trees
+    link_sig_s: 0.005 # Sigmoidal scale parameter for link weights
+    link_sig_k: 0.03 # Sigmoidal offset parameter for link weights
+    
+- checkpoint:
+    file: /n/holylfs02/LABS/olveczky_lab/Anand/data/dh_labeled_snippets.h5 # Clustered snippets are stored as a single HDF5 file
+    batch_size: 1000 # Batch size determines chunking for next stage; since this is the last step, this has no effect.
+    batch_overlap: 0

@@ -1,0 +1,3 @@
+``ISO-SPLIT`` operates on the principle of testing for bimodality using the Kolmogorov-Smirnov distance of the sample density to a hypothetical unimodal probability density. This test is repeated in multi-dimensional data to yield separating hyperplanes well-suited to convex clusters.
+
+For more information, see `Magland, J. F., & Barnett, A. H. (2015). Unimodal clustering using isotonic regression: ISO-SPLIT. arXiv preprint arXiv:1508.04841. <https://arxiv.org/abs/1508.04841>`_.
