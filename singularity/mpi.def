@@ -30,7 +30,7 @@ From: ghcr.io/mamba-org/micromamba:git-77b63de-jammy-cuda-12.2.2
 
     echo "Installing required packages..."
     apt-get update
-    apt-get install -y wget git vim bash gcc g++ make file bzip2 zlib1g-dev | tee $BUILD_LOGS/1.apt-get.log
+    apt-get install -y wget git vim bash gcc g++ make file bzip2 zlib1g-dev qt6-base-dev libxcb-cursor-dev | tee $BUILD_LOGS/1.apt-get.log
 
     source /usr/local/bin/_activate_current_env.sh
     micromamba activate base
