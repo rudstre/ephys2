@@ -27,7 +27,7 @@ fi
 echo -e "${GREEN}Installation log will be saved to $LOG_FILE${NC}"
 
 # Load environment variables (includes OS check)
-source "${SCRIPT_DIR}/aux/envvars.sh"
+source "${SCRIPT_DIR}/deps/envvars.sh"
 
 # Number of CPU cores
 NUM_CORES=$(getconf _NPROCESSORS_ONLN)
@@ -183,8 +183,8 @@ install_build_tools() {
     else
         {
             sudo apt update
-            sudo apt install -y build-essential wget
-            echo "build-essential and wget installed via apt."
+            sudo apt install -y build-essential wget libxcb-cursor0
+            echo "necessary libraries installed via apt."
         } >> "$LOG_FILE" 2>&1
     fi
 }
@@ -251,7 +251,7 @@ install_conda() {
         elif [ "$USER_CHOICE" -eq 3 ]; then
             echo "Deleting all existing Conda installations..."
             for conda_path in "${conda_paths_found[@]}"; do
-                conda init --reverse
+                conda init "$SHELL_NAME" --reverse
                 rm -rf "$conda_path"
                 echo "Deleted $conda_path"
             done
@@ -294,14 +294,17 @@ install_miniforge() {
 # Function to initialize the Conda environment
 initialize_conda_environment() {
     start_step "Initializing Conda environment..."
+    source "$CONDA_PATH/etc/profile.d/conda.sh"
     source "$CONDA_PATH/etc/profile.d/mamba.sh"
     mamba init "$SHELL_NAME"
     mamba activate base
-    if mamba info --envs | grep -q "$CONDA_ENV_NAME"; then
+    if conda info --envs | grep -q "$CONDA_ENV_NAME"; then
         echo "Conda environment '$CONDA_ENV_NAME' already exists."
         read -rp "What would you like to call the Conda environment instead? " CONDA_ENV_NAME
     fi
     {
+        mamba clean --all -y
+        mamba update --all -c conda-forge -y
         mamba create -n "$CONDA_ENV_NAME" python="$PYTHON_VERSION" -y
     } >> "$LOG_FILE" 2>&1
     echo "Conda environment '$CONDA_ENV_NAME' created."
@@ -314,7 +317,7 @@ install_python_packages() {
     mamba activate "$CONDA_ENV_NAME"
     if [ "$INSTALL_OPTION" = "GUI" ]; then
         {
-            mamba install -c conda-forge numpy scipy matplotlib osqp cvxopt cython mpi4py -y
+            mamba install -c conda-forge numpy scipy matplotlib osqp cvxopt cython openmpi mpi4py -y
         } >> "$LOG_FILE" 2>&1
         echo "Python packages installed via Conda."
     elif [ "$INSTALL_OPTION" = "FULL" ]; then
@@ -411,35 +414,6 @@ install_ephys2() {
     } >> "$LOG_FILE" 2>&1
 }
 
-# Function to create Conda activation and deactivation scripts
-create_conda_activation_scripts() {
-    start_step "Installing Conda activation and deactivation scripts..."
-    {
-        ACTIVATE_DIR="$CONDA_PREFIX/etc/conda/activate.d"
-        DEACTIVATE_DIR="$CONDA_PREFIX/etc/conda/deactivate.d"
-
-        mkdir -p "$ACTIVATE_DIR"
-        mkdir -p "$DEACTIVATE_DIR"
-
-        # Determine which activation script to use based on the installation option
-        if [ "$INSTALL_OPTION" = "FULL" ]; then
-            ACTIVATE_SCRIPT="conda/activate_ephys2_full.sh"
-        else
-            ACTIVATE_SCRIPT="conda/activate_ephys2_gui.sh"
-        fi
-
-        # Copy the activation and deactivation scripts from the repository
-        cp "$SCRIPT_DIR/$ACTIVATE_SCRIPT" "$ACTIVATE_DIR/activate_ephys2.sh"
-        cp "$SCRIPT_DIR/conda/deactivate_ephys2.sh" "$DEACTIVATE_DIR/"
-
-        # Ensure the scripts are executable
-        chmod +x "$ACTIVATE_DIR/activate_ephys2.sh"
-        chmod +x "$DEACTIVATE_DIR/deactivate_ephys2.sh"
-
-        echo "Conda activation and deactivation scripts installed."
-    } >> "$LOG_FILE" 2>&1
-}
-
 # Function to clean up temporary files and directories
 cleanup() {
     start_step "Cleaning up temporary files and directories..."
@@ -456,7 +430,6 @@ main() {
     setup_temp_folder
     install_build_tools
     install_conda
-    source "$CONDA_PATH/etc/profile.d/conda.sh"
     initialize_conda_environment
     install_python_packages
     if [ "$INSTALL_OPTION" = "FULL" ]; then
@@ -466,13 +439,9 @@ main() {
         install_h5py
     fi
     install_ephys2
-    create_conda_activation_scripts
 
     cleanup
     print_msg "Installation completed successfully!"
-
-    # Inform the user about the alias
-    print_msg "You can now run the GUI using the command 'ephys2gui' in the activated conda environment."
 }
 
 # Start the script

@@ -1,6 +1,5 @@
 #!/bin/bash
+SCRIPTPATH="$1"
+echo "Running $SCRIPTPATH"
 
-echo "Running ephys2 [singularity]"
-echo "N_PROCS IS $N_PROCS"
-
-mpirun -np $N_PROCS python -m ephys2.run $1
+micromamba run -n base "$SCRIPTPATH" "${@:2}"

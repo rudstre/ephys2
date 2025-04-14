@@ -3,7 +3,7 @@
 **E**lectro**phys**iology spike-sorting pipeline, the **2**nd.
 
 * PI: [Bence Olveczky](https://olveczkylab.oeb.harvard.edu/people/bence-p-olveczky), Professor of Organismic and Evolutionary Biology
-* Contact: [Mahmood Shad](mailto:mohammadishad@g.harvard.edu), [Anand Srinivasan](mailto:asrinivasan@g.harvard.edu), [Sarah Leinicke](mailto:sarahleinicke@g.harvard.edu), [Naeem Khoshnevis](mailto:naeemkhoshnevis@g.harvard.edu), [Chris Axon](mailto:christopher_axon@harvard.edu) (current RSE at Olveczky Lab)
+* Contact: [Max Shad](mailto:max_shadd@harvard.edu), [Anand Srinivasan](mailto:asrinivasan@g.harvard.edu), [Sarah Leinicke](mailto:sarahleinicke@g.harvard.edu), [Naeem Khoshnevis](mailto:naeemkhoshnevis@g.harvard.edu), [Chris Axon](mailto:christopher_axon@harvard.edu) (current RSE at Olveczky Lab)
 * Developers: 
 
     - Mahmood Shad, Associate Director, Research Software Engineering 

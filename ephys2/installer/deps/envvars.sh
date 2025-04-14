@@ -8,20 +8,14 @@ if [[ "$OS_TYPE" == "Darwin" ]]; then
     SHELL_NAME="zsh"
     RC_FILEPATH="$HOME/.zshrc"
     LOCAL_DIR="$HOME/usr/opt/local"
-    if [[ "$ARCH_TYPE" == "arm64" ]]; then
-        # Apple Silicon Mac
-        CONDA_DOWNLOAD_URL="https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-MacOSX-arm64.sh"
-    else
-        # Intel Mac
-        CONDA_DOWNLOAD_URL="https://repo.anaconda.com/archive/Anaconda3-2022.05-MacOSX-x86_64.sh"
-    fi
+    CONDA_DOWNLOAD_URL="https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-MacOSX-$(uname -m).sh"
     CMAKE_DOWNLOAD_URL="https://github.com/Kitware/CMake/releases/download/v3.27.4/cmake-3.27.4-macos-universal.tar.gz"
 elif [[ "$OS_TYPE" == "Linux" ]]; then
     MACOS=false
     SHELL_NAME="bash"
     RC_FILEPATH="$HOME/.bashrc"
     LOCAL_DIR="/usr/local"
-    CONDA_DOWNLOAD_URL="https://repo.anaconda.com/archive/Anaconda3-2022.05-Linux-x86_64.sh"
+    CONDA_DOWNLOAD_URL="https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
     CMAKE_DOWNLOAD_URL=""  # Not used on Linux
 else
     echo "Unsupported OS: $OS_TYPE"
@@ -55,11 +49,6 @@ export CONDA_PATH_OLD
 export RC_FILEPATH
 
 # Ensure the user owns the LOCAL_DIR
-if [ -d "$LOCAL_DIR" ]; then
-    sudo chown -R "$USER" "$LOCAL_DIR"
-    sudo chmod -R 755 "$LOCAL_DIR"
-else
-    sudo mkdir -p "$LOCAL_DIR"
-    sudo chown -R "$USER" "$LOCAL_DIR"
-    sudo chmod -R 755 "$LOCAL_DIR"
-fi
+sudo mkdir -p "$LOCAL_DIR"
+sudo chown -R "$USER" "$LOCAL_DIR"
+sudo chmod -R 755 "$LOCAL_DIR"

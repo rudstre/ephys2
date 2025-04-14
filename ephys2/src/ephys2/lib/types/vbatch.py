@@ -87,7 +87,8 @@ class VBatch(Batch):
 		'''
 		Delete data from the leading-edge overlap
 		'''
-		self.split(self.overlap)
+		if self.overlap > 0:
+			self.split(self.overlap)
 
 	def __getitem__(self, idx: slice) -> 'VBatch':
 		vtime = self.time[idx]

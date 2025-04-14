@@ -35,10 +35,16 @@ class FinalizeStage(ProcessingStage):
           if 'excluded_units' in file[item_id]:
             self.excluded_units[item_id] = file[item_id]['excluded_units'][:]
 
+      # Since unit exclusion produces a dynamically-sized result, we must remove any possible `overlap` parameter, as it will be inconsistent with the actual data.
+      # TODO: Declare fixed- vs. dynamic-output stages at the type level, and throw errors (or warnings at the least) when users provide nonzero `overlap` to dynamically sized stages.
+      item.remove_overlap()
+      
       # Map labels into linked domain
       linked_time = item.time
       linked_data = item.data
       linked_labels = link_labels(item.labels, item.linkage)
+
+      # Apply unit exclusion
       if self.excluded_units[item_id].size > 0:
         mask = np.full(linked_labels.size, True)
         for exc_label in self.excluded_units[item_id]:
@@ -48,7 +54,7 @@ class FinalizeStage(ProcessingStage):
         linked_labels = linked_labels[mask]
 
       items[item_id] = LVBatch(
-        time=linked_time, data=linked_data, labels=linked_labels, overlap=item.overlap
+        time=linked_time, data=linked_data, labels=linked_labels, overlap=0
       )
 
     return LVMultiBatch(items=items)
