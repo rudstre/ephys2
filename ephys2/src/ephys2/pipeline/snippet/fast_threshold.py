@@ -55,6 +55,8 @@ class FastThresholdStage(SnippetingStage):
 		'''
 		Threshold-based snippeting of tetrode array
 		'''
+		assert amp_data.data.shape[1] % self.cfg['n_channels'] == 0, f'Number of channels ({amp_data.data.shape[1]}) must be divisible by group size ({self.cfg["n_channels"]})'
+
 		all_times, all_features, max_length = _cpp.snippet_channel_groups(
 			amp_data.time,
 			amp_data.data,

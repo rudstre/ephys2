@@ -56,7 +56,7 @@ RHD2000Data read_rhd2000_batch(
 	int64_t *amp_t = new int64_t[N];					// Time
 	float *amp_data = new float[M * N]; 			// Amplifier data in row-major ordering per NumPy convention
 	float *analog_data = new float[Ma * N];  	// Analog aux input data
-	bool *digital_data = new bool[Md * N]; 		// Digital aux input data
+	uint16_t *digital_data = new uint16_t[Md * N]; // Digital aux input data
 
 	// State
 	size_t buf_i = 4 * start_offset; 				// Skip start offset for time

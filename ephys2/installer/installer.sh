@@ -163,6 +163,24 @@ set_conda_env_name() {
 setup_temp_folder() {
     start_step "Setting up temporary folder..."
     mkdir -p "$PREFIX" >> "$LOG_FILE" 2>&1
+    # Also prepare deps folder for the patch if it doesn't exist
+    mkdir -p "$SCRIPT_DIR/deps" >> "$LOG_FILE" 2>&1
+}
+
+# Function to fetch h5py patch
+fetch_h5py_patch() {
+    start_step "Fetching h5py patch..."
+    PATCH_SOURCE_PATH="$(dirname $(dirname "$SCRIPT_DIR"))/singularity/h5py.patch"
+    PATCH_DEST_PATH="$SCRIPT_DIR/deps/h5py.patch"
+    if [ -f "$PATCH_SOURCE_PATH" ]; then
+        cp "$PATCH_SOURCE_PATH" "$PATCH_DEST_PATH" >> "$LOG_FILE" 2>&1
+        echo "h5py.patch copied to $PATCH_DEST_PATH" >> "$LOG_FILE" 2>&1
+    else
+        echo "Error: h5py.patch not found at $PATCH_SOURCE_PATH. This is a critical component." >> "$LOG_FILE"
+        echo -e "${RED}Error: h5py.patch not found at $PATCH_SOURCE_PATH. This is a critical component. Installation cannot proceed.${NC}" >&2
+        exit 1 # Exit if patch is not found
+    fi
+    return 0 # Indicate success
 }
 
 # Function to install build tools
@@ -170,7 +188,10 @@ install_build_tools() {
     start_step "Installing build tools..."
     if $MACOS; then
         if [ -d "/Applications/CMake.app" ]; then
-            echo "CMake.app already exists in /Applications."
+            echo "CMake.app already exists in /Applications." >> "$LOG_FILE" 2>&1
+            # Ensure CMake is in PATH for the current script execution
+            export PATH="/Applications/CMake.app/Contents/bin:$PATH"
+            echo "Ensured /Applications/CMake.app/Contents/bin is in PATH for this session." >> "$LOG_FILE" 2>&1
         else
             {
                 curl -L -o "${CMAKE_SOURCE_PATH}.tar.gz" "$CMAKE_DOWNLOAD_URL"
@@ -178,6 +199,9 @@ install_build_tools() {
                 tar -xzf "${CMAKE_SOURCE_PATH}.tar.gz" -C "$CMAKE_SOURCE_PATH" --strip-components 1
                 sudo mv "$CMAKE_SOURCE_PATH/CMake.app" /Applications/
                 echo "CMake.app installed in /Applications."
+                # Add CMake to PATH for the current script execution
+                export PATH="/Applications/CMake.app/Contents/bin:$PATH"
+                echo "Added /Applications/CMake.app/Contents/bin to PATH for this session."
             } >> "$LOG_FILE" 2>&1
         fi
     else
@@ -293,36 +317,118 @@ install_miniforge() {
 
 # Function to initialize the Conda environment
 initialize_conda_environment() {
-    start_step "Initializing Conda environment..."
-    source "$CONDA_PATH/etc/profile.d/conda.sh"
-    source "$CONDA_PATH/etc/profile.d/mamba.sh"
-    mamba init "$SHELL_NAME"
-    mamba activate base
-    if conda info --envs | grep -q "$CONDA_ENV_NAME"; then
-        echo "Conda environment '$CONDA_ENV_NAME' already exists."
-        read -rp "What would you like to call the Conda environment instead? " CONDA_ENV_NAME
+    start_step "Initializing Conda environment and installing Mamba..."
+
+    if [ -z "$CONDA_PATH" ] || [ ! -x "$CONDA_PATH/bin/conda" ]; then
+        echo -e "${RED}Error: CONDA_PATH ('$CONDA_PATH') is not set or invalid. Cannot initialize Conda environment.${NC}" >&2
+        exit 1
     fi
+
+    echo "Sourcing Conda script: $CONDA_PATH/etc/profile.d/conda.sh" >> "$LOG_FILE"
+    set +e
+    source "$CONDA_PATH/etc/profile.d/conda.sh"
+    source_exit_code=$?
+    set -e
+    if [ $source_exit_code -ne 0 ]; then
+        echo -e "${RED}Warning: Sourcing conda.sh returned non-zero: $source_exit_code. Proceeding cautiously.${NC}" | tee -a "$LOG_FILE"
+    fi
+
+    echo "Initializing Conda for shell $SHELL_NAME..." | tee -a "$LOG_FILE"
+    if ! conda init "$SHELL_NAME" >> "$LOG_FILE" 2>&1; then
+        echo -e "${RED}Warning: 'conda init $SHELL_NAME' failed. Conda might not be fully set up for future interactive sessions.${NC}" | tee -a "$LOG_FILE"
+    else
+        echo "Conda successfully initialized for $SHELL_NAME." | tee -a "$LOG_FILE"
+    fi
+    
+    # Re-source the RC file to make conda activate available in the current script session if needed.
+    # This is a bit dependent on how conda init behaves and if it modifies the current shell state.
+    # For zsh, it typically modifies .zshrc. For bash, .bashrc.
+    # We need to ensure `conda activate base` works reliably right after `conda init`.
+    echo "Attempting to activate Conda base environment after conda init..." | tee -a "$LOG_FILE"
+    # Try activating base. If it fails, attempt to re-source shell config and try again.
+    # This complex activation logic is to make script more robust across different shell behaviors with `conda init`.
+    if ! conda activate base >> "$LOG_FILE" 2>&1; then
+        echo "Initial conda activate base failed. Attempting to re-source shell config..." >> "$LOG_FILE"
+        RC_FILE_TO_SOURCE=""
+        if [ "$SHELL_NAME" == "zsh" ]; then RC_FILE_TO_SOURCE="$HOME/.zshrc"; 
+        elif [ "$SHELL_NAME" == "bash" ]; then RC_FILE_TO_SOURCE="$HOME/.bashrc"; 
+        fi
+
+        if [ -n "$RC_FILE_TO_SOURCE" ] && [ -f "$RC_FILE_TO_SOURCE" ]; then
+            echo "Sourcing $RC_FILE_TO_SOURCE..." >> "$LOG_FILE"
+            set +e
+            source "$RC_FILE_TO_SOURCE"
+            set -e
+            echo "Re-sourced $RC_FILE_TO_SOURCE. Retrying conda activate base..." >> "$LOG_FILE"
+            if ! conda activate base >> "$LOG_FILE" 2>&1; then
+                 echo -e "${RED}Error: Failed to activate Conda base environment even after re-sourcing shell config. Check Conda installation at $CONDA_PATH.${NC}" >&2
+                 exit 1
+            fi
+        else 
+            echo -e "${RED}Error: Could not determine RC file to source, or file does not exist. Failed to activate Conda base environment.${NC}" >&2
+            exit 1
+        fi
+    fi
+    echo "Conda base environment activated." | tee -a "$LOG_FILE"
+
+    echo "Ensuring Mamba is installed in base Conda environment..." | tee -a "$LOG_FILE"
+    if ! conda install -n base -c conda-forge mamba -y >> "$LOG_FILE" 2>&1; then
+        echo -e "${RED}Error: Failed to install Mamba into the base Conda environment.${NC}" >&2
+        exit 1
+    fi
+    echo "Mamba is now installed/updated in the base environment." | tee -a "$LOG_FILE"
+
+    # With mamba installed in the active base environment and Conda initialized,
+    # we will use 'conda activate' for script context switching.
+  
+    # Check if target environment already exists using mamba
+    echo "Checking if Mamba environment '$CONDA_ENV_NAME' already exists..." | tee -a "$LOG_FILE"
+    if conda env list | grep -qE "^${CONDA_ENV_NAME}(\\s|$)"; then
+        # Environment exists (grep returns 0)
+        echo "Mamba environment '$CONDA_ENV_NAME' already exists." | tee -a "$LOG_FILE"
+        read -rp "Enter a new name for the Mamba environment, or press Enter to exit: " NEW_CONDA_ENV_NAME
+        if [ -n "$NEW_CONDA_ENV_NAME" ]; then
+            CONDA_ENV_NAME="$NEW_CONDA_ENV_NAME"
+            echo "New environment name set to '$CONDA_ENV_NAME'." | tee -a "$LOG_FILE"
+        else
+            echo -e "${RED}No new environment name provided. Exiting to avoid issues with existing environment.${NC}" >&2
+            exit 1 # Exit if user provides no new name for an existing env
+        fi
+    else
+        # Environment does not exist (grep returns 1), or mamba/grep had other error
+        echo "Mamba environment '$CONDA_ENV_NAME' not found. Proceeding with creation." | tee -a "$LOG_FILE"
+    fi
+    
+    echo "Creating Mamba environment '$CONDA_ENV_NAME' with Python $PYTHON_VERSION..." | tee -a "$LOG_FILE"
     {
-        mamba clean --all -y
-        mamba update --all -c conda-forge -y
-        mamba create -n "$CONDA_ENV_NAME" python="$PYTHON_VERSION" -y
-    } >> "$LOG_FILE" 2>&1
-    echo "Conda environment '$CONDA_ENV_NAME' created."
-    mamba activate "$CONDA_ENV_NAME"
+        conda clean --all -y
+        mamba create -n "$CONDA_ENV_NAME" python="$PYTHON_VERSION" -c conda-forge -y
+    } >> "$LOG_FILE" 2>&1 || {
+        echo -e "${RED}Error: Failed to create Mamba environment '$CONDA_ENV_NAME'. Check $LOG_FILE for details.${NC}" >&2
+        exit 1
+    }
+    echo "Mamba environment '$CONDA_ENV_NAME' created successfully." | tee -a "$LOG_FILE"
+    
+    echo "Activating environment '$CONDA_ENV_NAME' using conda activate..." | tee -a "$LOG_FILE"
+    if ! conda activate "$CONDA_ENV_NAME" >> "$LOG_FILE" 2>&1; then
+        echo -e "${RED}Error: Failed to activate environment '$CONDA_ENV_NAME' using conda. Check $LOG_FILE for details.${NC}" >&2
+        exit 1
+    fi
+    echo "Environment '$CONDA_ENV_NAME' activated using conda." | tee -a "$LOG_FILE"
 }
 
 # Function to install Python packages
 install_python_packages() {
     start_step "Installing Python packages..."
-    mamba activate "$CONDA_ENV_NAME"
+    conda activate "$CONDA_ENV_NAME"
     if [ "$INSTALL_OPTION" = "GUI" ]; then
         {
-            mamba install -c conda-forge numpy scipy matplotlib osqp cvxopt cython openmpi mpi4py -y
+            mamba install -c conda-forge numpy=1.26.4 scipy=1.13.1 matplotlib osqp cvxopt cython openmpi mpi4py=3.1.5 -y
         } >> "$LOG_FILE" 2>&1
         echo "Python packages installed via Conda."
     elif [ "$INSTALL_OPTION" = "FULL" ]; then
         {
-            pip install --no-input numpy scipy matplotlib osqp cvxopt cython
+            pip install --no-input numpy==1.26.4 scipy==1.13.1 matplotlib osqp cvxopt cython
         } >> "$LOG_FILE" 2>&1
         echo "Python packages installed via pip."
     fi
@@ -378,24 +484,51 @@ install_hdf5() {
 install_mpi4py() {
     start_step "Installing mpi4py within Conda environment..."
     {
-        mamba activate "$CONDA_ENV_NAME"
+        conda activate "$CONDA_ENV_NAME"
         pip uninstall -y mpi4py || true
         pip cache purge
         export PATH="$CONDA_PREFIX/bin:$PATH"
-        MPICC=$(which mpicc) pip install --no-binary=mpi4py --no-cache-dir mpi4py
+        MPICC=$(which mpicc) pip install --no-binary=mpi4py --no-cache-dir mpi4py==3.1.5
         echo "mpi4py installed within Conda environment."
     } >> "$LOG_FILE" 2>&1
 }
 
 # Function to install h5py
 install_h5py() {
-    start_step "Installing h5py with MPI support within Conda environment..."
+    start_step "Installing h5py with MPI support from source within Conda environment..."
     {
-        mamba activate "$CONDA_ENV_NAME"
+        conda activate "$CONDA_ENV_NAME"
         pip uninstall -y h5py || true
         pip cache purge
-        HDF5_MPI="ON" CC=mpicc HDF5_DIR="$CONDA_PREFIX" pip install --no-input --no-binary=h5py --no-cache-dir h5py
-        echo "h5py installed with MPI support within Conda environment."
+        
+        # Clean up previous source if it exists
+        if [ -d "$H5PY_SOURCE_PATH" ]; then
+            rm -rf "$H5PY_SOURCE_PATH"
+        fi
+        mkdir -p "$H5PY_SOURCE_PATH"
+        
+        echo "Cloning h5py repository..." >> "$LOG_FILE"
+        git clone https://github.com/h5py/h5py.git "$H5PY_SOURCE_PATH" >> "$LOG_FILE" 2>&1
+        cd "$H5PY_SOURCE_PATH"
+        
+        echo "Checking out specific h5py commit..." >> "$LOG_FILE"
+        git checkout 102698165a0013c0ebc25d517a606820f2dcdc4d >> "$LOG_FILE" 2>&1
+        
+        PATCH_FILE_PATH="$SCRIPT_DIR/deps/h5py.patch"
+        if [ -f "$PATCH_FILE_PATH" ]; then
+            echo "Applying h5py patch..." >> "$LOG_FILE"
+            git apply "$PATCH_FILE_PATH" >> "$LOG_FILE" 2>&1
+        else
+            echo "Error: Patch file $PATCH_FILE_PATH not found. Skipping patch." >> "$LOG_FILE"
+            echo -e "${RED}Error: Patch file $PATCH_FILE_PATH not found. Skipping patch application.${NC}" >&2
+            # This is a critical step, if patch is missing, we might want to halt or warn severely
+            # For now, it will proceed without the patch if not found by fetch_h5py_patch
+        fi
+        
+        echo "Installing patched h5py..." >> "$LOG_FILE"
+        HDF5_MPI="ON" CC=mpicc HDF5_DIR="$CONDA_PREFIX" pip install --no-input --no-binary=h5py --no-cache-dir . # Install from current dir (cloned repo)
+        echo "h5py installed with MPI support from source within Conda environment."
+        cd "$SCRIPT_DIR" # Return to script directory
     } >> "$LOG_FILE" 2>&1
 }
 
@@ -403,7 +536,7 @@ install_h5py() {
 install_ephys2() {
     start_step "Installing ephys2 package..."
     {
-        mamba activate "$CONDA_ENV_NAME"
+        conda activate "$CONDA_ENV_NAME"
         rm -rf "$EPHYS_REPO/_skbuild"
         pip uninstall -y ephys2 || true
         pip cache purge
@@ -428,6 +561,9 @@ main() {
     choose_install_option
     set_conda_env_name
     setup_temp_folder
+    # Fetch the patch before build tools or conda, as it's a dependency for h5py build
+    fetch_h5py_patch
+
     install_build_tools
     install_conda
     initialize_conda_environment

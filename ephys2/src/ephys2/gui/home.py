@@ -32,10 +32,12 @@ class HomeWidget(QtWidgets.QLabel):
 
 class HomePage(QtWidgets.QMainWindow):
 
-	def __init__(self, *args, **kwargs):
+	def __init__(self, default_directory='.', *args, **kwargs):
 		super().__init__(*args, **kwargs)
 		pg.setConfigOptions(antialias=True, useOpenGL=False) # Antialiasing for prettier plots
 		self.setWindowTitle('ephys2')
+		# Validate and set default directory
+		self.default_directory = os.path.abspath(default_directory) if os.path.exists(default_directory) else os.path.abspath('.')
 		resize_to_active_screen(self)
 		self.setStyleSheet("background-color: white;")
 		self.create_menu_bar()
@@ -71,7 +73,7 @@ class HomePage(QtWidgets.QMainWindow):
 		Open a file and determine which viewer to show based on the file type.
 		'''
 		if self.warned_about_unsaved_changes():
-			filepaths = QtWidgets.QFileDialog.getOpenFileNames(self, 'Open files', '.', 'Ephys2 HDF5 files (*.h5)', options=QtWidgets.QFileDialog.DontUseNativeDialog)[0]
+			filepaths = QtWidgets.QFileDialog.getOpenFileNames(self, 'Open files', self.default_directory, 'Ephys2 HDF5 files (*.h5)', options=QtWidgets.QFileDialog.DontUseNativeDialog)[0]
 			if all(os.path.exists(f) for f in filepaths) and len(filepaths) > 0:
 				try:
 					print(f'Opening files: {filepaths}')
@@ -89,7 +91,7 @@ class HomePage(QtWidgets.QMainWindow):
 
 	def open_rhd_file(self):
 		if self.warned_about_unsaved_changes():
-			filepath = QtWidgets.QFileDialog.getOpenFileName(self, 'Open file', '.', 'RHD2000 files (*.rhd)', options=QtWidgets.QFileDialog.DontUseNativeDialog)[0]
+			filepath = QtWidgets.QFileDialog.getOpenFileName(self, 'Open file', self.default_directory, 'RHD2000 files (*.rhd)', options=QtWidgets.QFileDialog.DontUseNativeDialog)[0]
 			if os.path.exists(filepath):
 				try:
 					print('Opening RHD file')
@@ -101,7 +103,7 @@ class HomePage(QtWidgets.QMainWindow):
 
 	def open_ofps(self):
 		if self.warned_about_unsaved_changes():
-			filepath = str(QtWidgets.QFileDialog.getExistingDirectory(self, 'Open directory one-file per signal type directory', options=QtWidgets.QFileDialog.DontUseNativeDialog))
+			filepath = str(QtWidgets.QFileDialog.getExistingDirectory(self, 'Open directory one-file per signal type directory', self.default_directory, options=QtWidgets.QFileDialog.DontUseNativeDialog))
 			if os.path.isdir(filepath):
 				try:
 					print('Opening OFPS directory')
@@ -113,7 +115,7 @@ class HomePage(QtWidgets.QMainWindow):
 
 	def open_benchmark(self):
 		if self.warned_about_unsaved_changes():
-			filepaths = QtWidgets.QFileDialog.getOpenFileNames(self, 'Open files', '.', 'Ephys2 benchmark files (*.json)', options=QtWidgets.QFileDialog.DontUseNativeDialog)[0]
+			filepaths = QtWidgets.QFileDialog.getOpenFileNames(self, 'Open files', self.default_directory, 'Ephys2 benchmark files (*.json)', options=QtWidgets.QFileDialog.DontUseNativeDialog)[0]
 			if all(os.path.exists(f) for f in filepaths) and len(filepaths) > 0:
 				try:
 					print(f'Opening benchmark files: {filepaths}')

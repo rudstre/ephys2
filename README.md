@@ -10,19 +10,22 @@
 
     - Anand Srinivasan, Sarah Leinicke and Naeem Khoshnevis, Research Software Engineers
 
-# Running on cluster (singularity)
-
-`singularity run --env N_PROCS=4 --cleanenv /n/holylabs/LABS/olveczky_lab/Lab/singularity/ephys2.sif ~/caxon_lustre/ephys_test_config.yaml`
-
-NOTES:
-* make sure you run from within a sbatch script! *NOT ON LOGIN NODES!*
-* replace `N_PROCS=4` with number of tasks from slurm sbatch
-* the final argument should point to your config yaml script
-* `--cleanenv` is very important! Without this argument, the container will only use 1x core isntead of `N_PROCS` CPU cores.
-* if you have any questions about running singularity, ask Chris Axon
 
 # Getting started 
+There are two central components to ephys2: the sorting pipeline and the GUI.
 
+The first main choice point is to decide whether you want to run it on your local computer, or on the cluster. ***Unless you are working with unusually small datasets, the answer is usually the cluster.***
+
+## Running on the cluster
+
+Follow instructions in [singularity/README.md](singularity/README.md)
+
+## Running locally
+
+Follow instructions in [ephys2/README.md](ephys2/README.md)
+
+
+# General guidelines
 These are the user docs; for source code / developer documentation, see the Python package in [ephys2](ephys2).
 
 Follow these steps to use `ephys2`:

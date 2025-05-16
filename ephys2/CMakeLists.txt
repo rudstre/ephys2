@@ -1,19 +1,36 @@
 # CMakeLists.txt
 
 # Set the minimum version of CMake that can be used
-cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
-# Set the C++ version
+# Platform detection
+if(APPLE)
+    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Build architectures for Mac OS X" FORCE)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum OS X deployment version" FORCE)
+endif()
+
+# Set the C++ standard
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# Compiler options
-# set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-if (WIN32)
-	message(STATUS "Using Windows-specific flags")
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+# Platform-specific compiler flags
+if(WIN32)
+    message(STATUS "Configuring for Windows")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
+elseif(APPLE)
+    message(STATUS "Configuring for macOS")
+    execute_process(
+        COMMAND xcrun --show-sdk-path
+        OUTPUT_VARIABLE SDKROOT 
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    include_directories(SYSTEM "${SDKROOT}/usr/include")
+    include_directories(SYSTEM "${SDKROOT}/usr/include/c++/v1")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -stdlib=libc++")
 else()
-	message(STATUS "Using regular flags")
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3")
+    message(STATUS "Configuring for Linux")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3")
 endif()
 
 # Set the project name

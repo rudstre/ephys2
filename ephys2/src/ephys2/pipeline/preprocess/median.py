@@ -38,7 +38,7 @@ class MedianFilterStage(PreprocessingStage):
 		'''
 		Median filter per-group (assumes group channels are contiguous)
 		'''
-		assert data.data.shape[1] % self.cfg['group_size'] == 0, 'Median group size not a divisor of # channels'
+		assert data.data.shape[1] % self.cfg['group_size'] == 0, f'Median group size ({self.cfg["group_size"]}) not a divisor of # channels ({data.data.shape[1]})'
 
 		if self.input_selectors is None:
 			for group in range(data.data.shape[1]//self.cfg['group_size']):

@@ -5,15 +5,21 @@ From: ghcr.io/mamba-org/micromamba:git-77b63de-jammy-cuda-12.2.2
     ./singularity/h5py.patch /opt/patches/
     ./singularity/hello_mpi.c /opt/test/
     ./singularity/test_ph5.py /opt/test/
-    ./ephys2/ /opt/ephys2
+    ./singularity/run_pipeline.sh /opt/run_pipeline.sh
+    ./singularity/run_gui.sh /opt/run_gui.sh
+    ./singularity/finalize_pipeline.yaml /opt/ephys2/singularity/finalize_pipeline.yaml
+    ./singularity/run_finalize.sh /opt/run_finalize.sh
+    ./ephys2/ /opt/ephys2/
 
 %environment
     # Point to OMPI binaries, libraries, man pages
     export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
     export BUILD_LOGS="/var/log/build"
-    export N_PROCS=4
+    export N_PROCS=8
 
 %post -c /bin/bash
+    set -euo pipefail
+
     # tmp directory for building (not mounted on host machine by default unlike /tmp)
     mkdir -m 777 -p /tmp-build
 
@@ -22,6 +28,7 @@ From: ghcr.io/mamba-org/micromamba:git-77b63de-jammy-cuda-12.2.2
 
     export BUILD_LOGS="/var/log/build"
     export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
+    export MAMBA_SKIP_ACTIVATE=0
 
     echo "PATH=$PATH"
     echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
@@ -98,7 +105,7 @@ From: ghcr.io/mamba-org/micromamba:git-77b63de-jammy-cuda-12.2.2
     echo "### removing-build-dir"
     rm -rf /tmp-build
 
-    cd /opt/ephys2
+    cd /opt/ephys2/ephys2
     echo "11.ephys2-pip-requirements" 
     pip install -r setup-requirements.txt | tee $BUILD_LOGS/11.ephys2-pip-requirements.log
     pip install -r gui-requirements.txt | tee $BUILD_LOGS/11.ephys2-pip-requirements.log
@@ -109,5 +116,21 @@ From: ghcr.io/mamba-org/micromamba:git-77b63de-jammy-cuda-12.2.2
 
 %runscript
     #!/bin/bash
-    micromamba run -n base "$1" "${@:2}"
+    case "$1" in
+        run)
+            SCRIPT="/opt/run_pipeline.sh"
+            ;;
+        gui)
+            SCRIPT="/opt/run_gui.sh"
+            ;;
+        finalize)
+            SCRIPT="/opt/run_finalize.sh"
+            ;;
+        *)
+            SCRIPT=$1
+            ;;
+    esac
+    shift
+
+    exec micromamba run -n base "$SCRIPT" "$@"
 

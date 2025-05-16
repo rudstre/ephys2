@@ -58,7 +58,7 @@ class BandpassStage(PreprocessingStage):
 				description = 'Minimum attenuation in the stopband'
 			),
 			'type': CategoricalParameter(
-				categories = ['ellip', 'cheby1', 'cheby2'],
+				categories = ['ellip', 'cheby1', 'cheby2','butter'],
 				units = None,
 				description = 'Filter type'
 			),

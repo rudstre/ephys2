@@ -1,0 +1,16 @@
+# Finalize spike labels after performing manual curation (ISO-SPLIT)
+# ==================================================================
+
+- load:
+    files: /outputs/"$1" # Path to labeled snippets HDF5 file
+    start: 0
+    stop: inf # Process all the data
+    batch_size: 100000 # Give any batch size here
+    batch_overlap: 0 # No overlap required
+
+- finalize # Do manual curation prior to this step
+
+- checkpoint:
+    file: /outputs/finalized.h5 # Clustered snippets are stored as a single HDF5 file
+    batch_size: 1000 # Give any batch size here
+    batch_overlap: 0 # No overlap required 
