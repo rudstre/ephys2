@@ -67,6 +67,7 @@ class IsosplitStage(ProcessingStage):
 				labeling = isosplit5(
 					super_cluster,
 					n_components = self.cfg['n_components'],
+					isocut_threshold = self.cfg['isocut_threshold'],
 					min_cluster_size = self.cfg['min_cluster_size'],
 					K_init = self.cfg['K_init'],
 					refine_clusters = self.cfg['refine_clusters'],

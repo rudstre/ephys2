@@ -47,7 +47,7 @@ EOF
 fi
 
 # 4) Auto‑detect (or prompt for) the latest release number
-LATEST_RELEASE=$(./singularity/get_latest_release.sh || true)
+LATEST_RELEASE=$(./singularity/internal/get_latest_release.sh || true)
 if [[ -z $LATEST_RELEASE ]]; then
   echo "⚠️  Could not auto‑detect latest release number."
   read -rp "Please enter new release number: " NEW_RELEASE

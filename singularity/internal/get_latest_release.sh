@@ -4,7 +4,7 @@ set -euo pipefail
 # Prompt for your FASRC username
 read -rp "Enter fasrc username: " USER
 REMOTE="login.rc.fas.harvard.edu"
-REMOTE_DIR="/n/holylabs/LABS/olveczky_lab/Lab/singularity/releases"
+REMOTE_DIR="/n/holylabs-olveczky/Lab/singularity/releases"
 
 # SSH in and pick best (as before), but echo just the version
 ssh "$USER@$REMOTE" bash -s -- "$REMOTE_DIR" <<'EOF'

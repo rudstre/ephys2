@@ -239,6 +239,38 @@ class ListParameter(Parameter):
 			val = [self.element.validate(val, effectful)]
 		return val
 
+@dataclass 
+class GlobExpandingListParameter(ListParameter):
+	"""A ListParameter that recursively expands glob patterns in nested structures"""
+	
+	def validate(self, val: Any, effectful: bool=True) -> List[Any]:
+		if type(val) is list:
+			result = []
+			for item in val:
+				if type(item) is list:
+					# Handle nested lists (sessions containing multiple files)
+					expanded_session = []
+					for subitem in item:
+						if type(subitem) is str and (isinstance(self.element.element, FileParameter) or isinstance(self.element.element, DirectoryParameter)):
+							# Expand glob pattern for file/directory strings
+							paths = sorted([x for x in glob.glob(subitem)]) if effectful else [subitem]
+							if effectful and len(paths) == 0:
+								# If no matches found, keep original pattern (will be validated later)
+								expanded_session.append(self.element.element.validate(subitem, effectful))
+							else:
+								expanded_session.extend([self.element.element.validate(x, effectful) for x in paths])
+						else:
+							expanded_session.append(self.element.element.validate(subitem, effectful))
+					result.append(expanded_session)
+				else:
+					# Handle top-level items
+					validated_item = self.element.validate(item, effectful)
+					result.append(validated_item)
+			return result
+		else:
+			# Fall back to parent behavior for non-list values
+			return super().validate(val, effectful)
+
 @dataclass
 class DictParameter(Parameter):
 	fields: 'Parameters'

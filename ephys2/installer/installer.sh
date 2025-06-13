@@ -372,10 +372,25 @@ initialize_conda_environment() {
     echo "Conda base environment activated." | tee -a "$LOG_FILE"
 
     echo "Ensuring Mamba is installed in base Conda environment..." | tee -a "$LOG_FILE"
-    if ! conda install -n base -c conda-forge mamba -y >> "$LOG_FILE" 2>&1; then
+    {
+        # First ensure conda is up to date
+        conda update -n base conda -y
+        
+        # Remove existing mamba installation if it exists
+        conda remove -n base mamba -y || true
+        
+        # Install mamba with explicit channel priority and dependencies
+        conda install -n base -c conda-forge mamba "libmamba>=0.25.0" -y
+        
+        # Verify mamba installation
+        if ! command -v mamba >/dev/null 2>&1; then
+            echo -e "${RED}Error: Mamba installation failed. Please check your Conda installation.${NC}" >&2
+            exit 1
+        fi
+    } >> "$LOG_FILE" 2>&1 || {
         echo -e "${RED}Error: Failed to install Mamba into the base Conda environment.${NC}" >&2
         exit 1
-    fi
+    }
     echo "Mamba is now installed/updated in the base environment." | tee -a "$LOG_FILE"
 
     # With mamba installed in the active base environment and Conda initialized,
@@ -402,19 +417,17 @@ initialize_conda_environment() {
     echo "Creating Mamba environment '$CONDA_ENV_NAME' with Python $PYTHON_VERSION..." | tee -a "$LOG_FILE"
     {
         conda clean --all -y
-        mamba create -n "$CONDA_ENV_NAME" python="$PYTHON_VERSION" -c conda-forge -y
+        # Create environment with conda first
+        conda create -n "$CONDA_ENV_NAME" -y
+        # Activate the environment
+        conda activate "$CONDA_ENV_NAME"
+        # Now use mamba for package management
+        mamba install -n "$CONDA_ENV_NAME" -c conda-forge python="$PYTHON_VERSION" -y
     } >> "$LOG_FILE" 2>&1 || {
-        echo -e "${RED}Error: Failed to create Mamba environment '$CONDA_ENV_NAME'. Check $LOG_FILE for details.${NC}" >&2
-        exit 1
+        echo -e "${RED}Error: Failed to create environment '$CONDA_ENV_NAME'. Check $LOG_FILE for details.${NC}" >&2
+        exit 1 
     }
-    echo "Mamba environment '$CONDA_ENV_NAME' created successfully." | tee -a "$LOG_FILE"
-    
-    echo "Activating environment '$CONDA_ENV_NAME' using conda activate..." | tee -a "$LOG_FILE"
-    if ! conda activate "$CONDA_ENV_NAME" >> "$LOG_FILE" 2>&1; then
-        echo -e "${RED}Error: Failed to activate environment '$CONDA_ENV_NAME' using conda. Check $LOG_FILE for details.${NC}" >&2
-        exit 1
-    fi
-    echo "Environment '$CONDA_ENV_NAME' activated using conda." | tee -a "$LOG_FILE"
+    echo "Environment '$CONDA_ENV_NAME' created successfully." | tee -a "$LOG_FILE"
 }
 
 # Function to install Python packages

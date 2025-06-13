@@ -29,7 +29,7 @@ echo "Running: $SCRIPT_PATH"
 echo "N_PROCS = ${SLURM_CPUS_PER_TASK:-1}"
 
 # --- DYNAMIC SIF LOOKUP ---
-RELEASE_DIR="/n/holylabs/LABS/olveczky_lab/Lab/singularity/releases"
+RELEASE_DIR="/n/holylabs-olveczky/Lab/singularity/releases"
 
 # Option A: version-sort by filename (requires GNU sort -V)
 latest_sif=$(ls -1 "${RELEASE_DIR}"/ephys2-release-*.sif 2>/dev/null \

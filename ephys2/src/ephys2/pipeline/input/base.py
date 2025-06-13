@@ -14,6 +14,7 @@ import os
 
 from ephys2.lib.mpi import MPI
 from ephys2.lib.types import *
+from ephys2.lib.types.config import GlobExpandingListParameter
 from ephys2.lib.singletons import global_metadata, logger
 from ephys2.lib.utils import *
 
@@ -60,7 +61,7 @@ class ParallelInputStage(InputStage):
 		return {
 			'batch_size': IntParameter(
 				start = 1,
-				stop = np.inf,
+				stop = np.inf,	
 				units = 'samples',
 				description = 'Number of samples to read per batch; determines memory usage and batch size for subsequent stages'
 			),
@@ -266,7 +267,7 @@ class ParallelSessionInputStage(ParallelTimestampedInputStage):
 	@classmethod
 	def parameters(cls: type) -> Parameters:
 		return ParallelTimestampedInputStage.parameters() | {
-			'sessions': ListParameter(
+			'sessions': GlobExpandingListParameter(
 				element = ListParameter(element=cls.input_parameter(), units=None, description=''),
 				units = None,
 				description = 'Input data to read'

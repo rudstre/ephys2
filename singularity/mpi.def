@@ -2,20 +2,20 @@ Bootstrap: docker
 From: ghcr.io/mamba-org/micromamba:git-77b63de-jammy-cuda-12.2.2
 
 %files
-    ./singularity/h5py.patch /opt/patches/
-    ./singularity/hello_mpi.c /opt/test/
-    ./singularity/test_ph5.py /opt/test/
-    ./singularity/run_pipeline.sh /opt/run_pipeline.sh
-    ./singularity/run_gui.sh /opt/run_gui.sh
-    ./singularity/finalize_pipeline.yaml /opt/ephys2/singularity/finalize_pipeline.yaml
-    ./singularity/run_finalize.sh /opt/run_finalize.sh
+    ./singularity/internal/h5py.patch /opt/patches/
+    ./singularity/internal/tests/hello_mpi.c /opt/test/
+    ./singularity/internal/tests/test_ph5.py /opt/test/
+    ./singularity/internal/postscripts/run_pipeline.sh /opt/run_pipeline.sh
+    ./singularity/internal/postscripts/run_gui.sh /opt/run_gui.sh
+    ./singularity/internal/postscripts/finalize_pipeline.yaml /opt/ephys2/singularity/finalize_pipeline.yaml
+    ./singularity/internal/postscripts/run_finalize.sh /opt/run_finalize.sh
     ./ephys2/ /opt/ephys2/
 
 %environment
     # Point to OMPI binaries, libraries, man pages
     export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
     export BUILD_LOGS="/var/log/build"
-    export N_PROCS=8
+    export N_PROCS=6
 
 %post -c /bin/bash
     set -euo pipefail

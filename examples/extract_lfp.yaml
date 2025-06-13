@@ -1,40 +1,43 @@
-# Extract LFPs by decimating
-# ==========================
-
 # 0. Input: ensure the batch_size is a multiple of the total downsampling factor (in this case, 100)
 # Also, ensure the sampling rate is a multiple of the total downsampling factor.
 
 - input.rhd2000:
-    sessions: /n/holylfs02/LABS/olveczky_lab/Anand/data/r4_210612_195804.rhd # Path to RHD file
-    datetime_pattern: "*_%y%m%d_%H%M%S" # Pattern to extract timestamps from the filenames (ensure to put in double-quotes; simply pass "*" to ignore patterns) - this ensures a consistent sample index across multiple files
-    batch_size: 450000 # Processing batch size 
-    batch_overlap: 0 
+    sessions: 
+        - /Users/rudygelb-bicknell/Documents/implants/eth1/1w_partial/*.rhd
+    datetime_pattern: "*_%y%m%d_%H%M%S"
+    batch_size: 100000 # Number of samples to load into memory (upper-bounded by stop_sample - stop_sample)
+    batch_overlap: 0 # Allows detection of spikes up to the batch boundary
     aux_channels: []
 
-# 1. Decimate five-fold twice by fourth-order Chebyshev Type I filter
+# 1. High-pass first
+- preprocess.bandpass:
+    order: 4
+    highpass: 1.0    # Hz
+    lowpass: inf     # Set to infinity to make it purely highpass
+    Rp: 0.5          # Ripple parameter  
+    Rs: 60           # Stopband attenuation
+    type: butter      # Closest available to butterworth
+    padding_type: odd
+    padding_length: 1000
+
+# 2. Three-stage IIR decimation (5×, 5×, 4×)
+- preprocess.decimate:
+    order: 4
+    factor: 5
+    type: iir
 
 - preprocess.decimate:
-    order: 4 # Filter order (increase to obtain better filter response, at the expense of performance and numerical stability)
-    factor: 5 # Downsampling factor
-    type: iir # Filter type, infinite impulse response (iir) or finite impulse response (fir)
+    order: 4
+    factor: 5
+    type: iir
 
 - preprocess.decimate:
-    order: 4 # Filter order (increase to obtain better filter response, at the expense of performance and numerical stability)
-    factor: 5 # Downsampling factor
-    type: iir # Filter type, infinite impulse response (iir) or finite impulse response (fir)
+    order: 4         # Using 8 as specified for sharper cutoff
+    factor: 4
+    type: iir
 
-# 2. Decimate once more four-fold to obtain total 100x downsampling
-
-- preprocess.decimate:
-    order: 4 # Filter order (increase to obtain better filter response, at the expense of performance and numerical stability)
-    factor: 4 # Downsampling factor
-    type: iir # Filter type, infinite impulse response (iir) or finite impulse response (fir)
-
-# 3. Data is saved in HDF5 as two arrays, "time" and "data" with the latter an N (samples) x M (channels) array
-
+# 3. Save the LFP data
 - checkpoint:
-    file: /n/holylfs02/LABS/olveczky_lab/Anand/data/r4_210612_195804_lfp.h5 # 
-    batch_size: 100000 # Ensure this is a multiple of the following overlap 
-    batch_overlap: 50000 # Since of overlapping instances of clustering
-
-
+    file: /Users/rudygelb-bicknell/Documents/implants/eth1/1w_partial/test/lfp.h5
+    batch_size: 100000
+    batch_overlap: 50000

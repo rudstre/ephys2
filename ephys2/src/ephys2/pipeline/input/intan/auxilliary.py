@@ -29,7 +29,7 @@ class RHDAuxStage(ProcessingStage):
         return {
             "aux_output_dir": StringParameter(
                 units=None,
-                description="Custom output directory for aux channel files. If provided, aux files will be saved here instead of the default session directories.",
+                description="Custom output directory for auxiliary data files. Use empty string '' to use the default session path."
             ),
             "aux_channels": MultiParameter(
                 units=None,
@@ -93,7 +93,8 @@ class RHDAuxStage(ProcessingStage):
         )
 
         # Get custom output directory if specified
-        self.aux_output_dir = self.cfg.get("aux_output_dir", None)
+        aux_output_dir_raw = self.cfg.get("aux_output_dir", "")
+        self.aux_output_dir = aux_output_dir_raw if aux_output_dir_raw.strip() else None
         
         # Create the output directory if it doesn't exist
         if self.aux_output_dir and not os.path.exists(self.aux_output_dir):

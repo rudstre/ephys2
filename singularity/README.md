@@ -3,60 +3,36 @@
 ## Overview  
 We package both the pipeline and GUI of **ephys2** into a single Singularity image (`.sif`) for easy deployment on HPC. A small bash wrapper (`runSingularity.slurm`) lets you invoke any ephys2 command inside that container.
 
----
+# 1. Using existing singularity builds 
 
-## 1. Building Singularity Images  
+## 1.0 SSH and clone repo
 
-### 1.1 Release Builds  
-Use this when you’ve finalized code on a git branch that’s synced with `main`.
-
+Before you can run anything, you need to ssh into the cluster:
 ```bash
-# From the project root (do NOT cd into singularity/)
-./singularity/build-release.sh
+ssh $(whoami)@login.rc.fas.harvard.edu
 ```
 
-- Prompts you to commit/push any uncommitted changes  
-- Auto‑numbers the new SIF based on existing releases in  
-  `/n/holylabs/LABS/olveczky_lab/Lab/singularity/releases`  
-- Appends name with unique git commit ID
-- Invokes `build-singularity.sh` (≈ 5–10 min)  
-- Move the generated SIF to the releases folder (e.g., via Globus)
-
-### 1.2 Prototype Builds  
-Quick iteration on cluster changes—no git checks:
-
+You then need to clone this repo somewhere on the cluster:
 ```bash
-# From the project root
-./singularity/build-singularity.sh
+git clone git@gitlab.com:OlveczkyLab/ephys2.git
 ```
 
-- Wait ~ 5–10 min  
-- On success, you’ll see:
+and then you need to cd into that repo:
+```bash
+cd ephys2
+```
 
-  ```
-  INFO:    Adding environment to container
-  INFO:    Adding runscript
-  INFO:    Creating SIF file...
-  INFO:    Build complete: ephys2.sif
-  ```
+All future commands should be run from this location.
 
-- Rename `ephys2.sif` and upload it, for example:
+## 1.1 Running the pipeline through singularity
 
-  ```bash
-  scp ./ephys2_custom.sif $(whoami)@login.rc.fas.harvard.edu:/n/holylabs/LABS/olveczky_lab/Lab/singularity/ephys2-a.sif
-  ```
-
----
-
-## 2. Running ephys2 commands through singularity  
-
-All commands use the same Slurm wrapper:
+All commands (except [launching the GUI](README.md#12-running-the-gui)) use the same Slurm wrapper:
 
 ```bash
 sbatch -c <NUM_CORES> \
        --mem=<MEM_MB> \
        -t <TIME_LIMIT> \
-       runSingularity.slurm \
+       singularity/runSingularity.slurm \
        <OUTPUT_DIR> \
        <COMMAND> \
        [<ARGS…>]
@@ -68,15 +44,15 @@ sbatch -c <NUM_CORES> \
 - Examples:
 
   ```bash
-  # Run spike-sorting pipeline with 64 cores, 500GB memory, with 4hr time limit:
+  # Run spike-sorting pipeline with 8 cores, 500GB memory, with 4hr time limit:
   sbatch -c 8 --mem=500000 -t 04:00:00 \
-         runSingularity.slurm \
+         singularity/runSingularity.slurm \
          /output/dir \
          run /path/to/config.yaml
 
   # Custom ephys2 command with 4 cores, 16GB memory, 1hr time limit:
   sbatch -c 4 --mem=16000 -t 01:00:00 \
-         runSingularity.slurm \
+         singularity/runSingularity.slurm \
          /output/dir \
          "python -m ephys2.customcommand --flag"
   ```
@@ -84,41 +60,82 @@ The wrapper will always attempt to send the job to the following partitions (in 
 
 ---
 
-## 3. Running the GUI  
+## 1.2 Running the GUI  
 
-### 3.1 Launch a Remote Desktop  
+### 1.2.1 Launch a Remote Desktop  
 1. Connect to VPN (if not on ethernet).  
 2. Open OnDemand at:  
    https://rcood.rc.fas.harvard.edu  
 3. **Select** “Remote Desktop” (not the containerized option), choose resources, and launch.  
 4. In the desktop’s terminal:
 
-#### 3.2 First‑Time Setup  
+#### 1.2.2 Run the GUI wrapper  
 ```bash
-# Install Micromamba
-"${SHELL}" <(curl -L micro.mamba.pm/install.sh)
-
-# Initialize and restart your shell
-micromamba init
-exec $SHELL
-
-# Create GUI environment
-micromamba create -n ephys2-gui xcb-util-cursor
+./singularity/launchGUI.sh <gui-args>
 ```
 
-#### 3.3 Run the GUI  
+for example:
 ```bash
-# Activate GUI env
-micromamba activate ephys2-gui
-
-# Launch ephys2 GUI
-singularity run --bind /n /path/to/ephys2.sif gui
-
-# OR Lanuch ephys2 GUI with particular default directory
-singularity run --bind /n /path/to/ephys2.sif gui --default-directory /path/to/data/dir
+./singularity/launchGUI.sh --default-directory /path/to/data
 ```
-**Note:** The `--bind /n` flag ensures cluster file systems are accessible within the singularity. 
 
-If you just need the latest version of the gui with no modifications, I'd recommend going with the latest release within ***/n/holylabs/LABS/olveczky_lab/Lab/singularity/releases***
+if this is your first time running the script, it will install micromamba (if you have no conda setup) and create a new environment called ephys2-gui with the necessary libraries. It will then launch the GUI.
+
+If this is not your first time, it will activate that environment and then run the GUI.
 
 ---
+
+## 2. Building New Singularity Images  
+
+If you have made changes to the source code, you will need to compile a new version of the singularity.
+
+**NOTE: You can only compile singularities on Linux!**
+
+### 2.1 Release Builds  
+`/n/holylabs/LABS/olveczky_lab/Lab/singularity/releases` is a folder that was created to house all "finalized" versions of the ephys2 source code.
+
+**When runSingularity.slurm is run, it will automatically use the latest release version of the singularity found in this folder.**
+
+If the changes you've made to the source code are intended to be permanent/you are fixing a bug, you should use the following script to build your singularity, and then move it to the above folder when it is complete.
+
+In order to keep track of what source code corresponds to each release version, building a release requires that you are on a git branch that is synced with `main`. The following script will then push a tag to the git repo associating the current commit with the release you are building.
+
+```bash
+# From the project root (do NOT cd into singularity/)
+./singularity/build-release.sh
+```
+
+- Prompts you to commit/push any uncommitted changes  
+- Auto‑numbers the new SIF based on existing releases in the release folder. 
+- Appends name with unique git commit ID
+- Invokes `build-singularity.sh` (≈ 5–10 min)  
+- Pushes a tag with the name of your release version to the current git commit you are on.
+
+When this is finished, move the generated SIF to `/n/holylabs/LABS/olveczky_lab/Lab/singularity/releases` either via Globus or some other file transfer service.
+
+
+### 2.2 Prototype Builds  
+If you just want to make a test build and do not plan on moving it to the releases folder, you can run a less constrained version of the build script with no git checks/automatic naming:
+
+```bash
+# From the project root
+./singularity/build-singularity.sh
+```
+
+Wait ~ 5–10 min, and on success, you’ll see:
+
+  ```
+  INFO:    Adding environment to container
+  INFO:    Adding runscript
+  INFO:    Creating SIF file...
+  INFO:    Build complete: ephys2.sif
+  ```
+
+Rename `ephys2.sif` and upload it to a non-release folder, for example:
+
+  ```bash
+  scp ./ephys2_custom.sif $(whoami)@login.rc.fas.harvard.edu:/n/holylabs/LABS/olveczky_lab/Lab/singularity/ephys2-test.sif
+  ```
+
+---
+

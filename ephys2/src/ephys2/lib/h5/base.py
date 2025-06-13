@@ -492,7 +492,7 @@ class H5MultiSerializer(H5Serializer):
 
 	def init_chunks_passthrough(self, h5dir: H5Dir, out_dir: Optional[H5Dir], data: MultiBatch):
 		self.serializers = dict()
-		self.item_ids = list(data.items.keys())
+		self.item_ids = sorted(list(data.items.keys()))  # Sort keys for consistent ordering
 		for item_id in self.item_ids:
 			item_dir = h5dir.create_group(item_id)
 			out_item_dir = None if (out_dir is None or not(item_id in out_dir.keys())) else out_dir[item_id]
@@ -500,21 +500,21 @@ class H5MultiSerializer(H5Serializer):
 			self.serializers[item_id].init_chunks_passthrough(item_dir, out_item_dir, data.items[item_id])
 
 	def write_chunk_passthrough(self, h5dir: H5Dir, data: MultiBatch):
-		for item_id, item in data.items.items():
+		for item_id, item in sorted(data.items.items()):  # Sort items for consistent ordering
 			self.serializers[item_id].write_chunk_passthrough(h5dir[item_id], item)
 
 	def iter_chunks_passthrough(self, h5dir: H5Dir) -> Gen[MultiData]:
 		return zip(
-			*(self.serializers[item_id].iter_chunks_passthrough(h5dir[item_id]) for item_id in self.item_ids)
+			*(self.serializers[item_id].iter_chunks_passthrough(h5dir[item_id]) for item_id in sorted(self.item_ids))  # Sort for consistent ordering
 		)
 
 	def read_chunks_info_passthrough(self, in_dirs: List[H5Dir]):
 		assert len(in_dirs) > 0
-		for item_id, serializer in self.serializers.items():
+		for item_id, serializer in sorted(self.serializers.items()):  # Sort for consistent ordering
 			serializer.read_chunks_info_passthrough([in_dir[item_id] for in_dir in in_dirs])
 
 	def init_serialize_passthrough(self, out_dir: H5Dir):
-		for item_id, serializer in self.serializers.items():
+		for item_id, serializer in sorted(self.serializers.items()):  # Sort for consistent ordering
 			out_item_dir = out_dir[item_id] if item_id in out_dir else out_dir.create_group(item_id)
 			serializer.init_serialize_passthrough(out_item_dir)
 				
@@ -525,10 +525,11 @@ class H5MultiSerializer(H5Serializer):
 
 	def start_serialize_passthrough(self) -> MultiIndex:
 		return tuple(
-			serializer.start_serialize_passthrough() for serializer in self.serializers.values()
+			serializer.start_serialize_passthrough() for _, serializer in sorted(self.serializers.items())  # Sort for consistent ordering
 		)
 	
 	def advance_serialize_passthrough(self, out_dir: H5Dir, iat: MultiIndex, data: MultiData) -> MultiIndex:
+		# Make sure we use the same order as in item_ids
 		return tuple(
 			self.serializers[item_id].advance_serialize_passthrough(
 				out_dir[item_id], idx, datum
@@ -541,14 +542,14 @@ class H5MultiSerializer(H5Serializer):
 
 	@classmethod
 	def check(cls: type, h5dir: H5Dir, full=False):
-		for item_id in h5dir.keys():
+		for item_id in sorted(h5dir.keys()):  # Sort for consistent ordering
 			cls.item_serializer().check(h5dir[item_id], full)
 
 	@classmethod
 	def get_size(cls: type, h5dir: H5Dir) -> Dict[str, int]:
 		return {
 			item_id: cls.item_serializer().get_size(h5dir[item_id]) 
-			for item_id in h5dir.keys()
+			for item_id in sorted(h5dir.keys())  # Sort for consistent ordering
 		}
 
 	@classmethod
@@ -556,7 +557,7 @@ class H5MultiSerializer(H5Serializer):
 		return cls.load_type()(
 			items = {
 				item_id: cls.item_serializer().load(h5dir[item_id], start, stop, overlap)
-				for item_id in h5dir.keys()
+				for item_id in sorted(h5dir.keys())  # Sort for consistent ordering
 			}
 		)
 
@@ -568,15 +569,16 @@ class H5MultiSerializer(H5Serializer):
 		return cls.load_type()(
 			items = {
 				item_id: cls.item_serializer().load_sparse(h5dir[item_id], indices)
-				for item_id in h5dir.keys()
+				for item_id in sorted(h5dir.keys())  # Sort for consistent ordering
 			}
 		)
 
 	@classmethod
 	def load_multi(cls: type, h5dirs: List[H5Dir], start: Optional[int]=None, stop: Optional[int]=None, overlap: int=0, time_offsets: Optional[List[int]]=None) -> MultiBatch:
+		keys = sorted(h5dirs[0].keys())  # Sort for consistent ordering
 		return cls.load_type()(
 			items = {
 				item_id: cls.item_serializer().load_multi([h5dir[item_id] for h5dir in h5dirs], start, stop, overlap, time_offsets)
-				for item_id in h5dirs[0].keys()
+				for item_id in keys
 			}
 		)

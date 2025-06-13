@@ -1,6 +1,10 @@
 # Local Install
 
 Follow these instructions to build `ephys2` on your local machine!
+
+**Note: Installing on Windows is not great. I would really recommend MacOS or Linux. The GUI will not work at all on Windows unfortunately due to WSL not easily supporting X11 applications.**
+
+
 ## 0. Prep for Windows installation
 If you are building on Windows, there are a few extra steps. The easiest (and so far only successful way we've managed to do it) is to use Windows Subsystem for Linux (WSL), a recently developed compatibility layer that allows you to completely simulate a unix environment in Windows without a virtual machine.
 
@@ -81,9 +85,6 @@ You can now access all of the files in your network drive in the Ubuntu shell by
 
 # Using ephys2
 
-All commands are assumed to be run from the `ephys2/ephys2` directory unless otherwise specified.
-
-
 ## Run the pipeline without parallelization:
 ```bash
 python -m ephys2.run workflow.yaml
@@ -96,15 +97,9 @@ mpirun -np $N_PROCS python -m ephys2.run workflow.yaml
 where `$N_PROCS` is the number of parallel threads you want to use. (This will depend on how many threads your local computer has.)
 
 ## Run the GUI
-See [GUI.md](GUI.md) or simply execute:
-```bash
-ephys2gui
-```
-or
 ```bash
 python -m ephys2.gui
 ```
-from any location.
 
 # Extra commands
 ## Run with debug statements:

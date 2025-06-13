@@ -7,12 +7,13 @@ import time
 import warnings
 import pdb
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, List, Union, Dict
 
 from ephys2.lib.utils import ext_mul
 from ephys2.lib.h5 import *
 from ephys2.lib.types import *
-from ephys2.lib.singletons import global_state
+from ephys2.lib.singletons import global_state, logger
+from ephys2.lib.distribution import WorkerDistribution
 
 class BatchLoader(ABC):
 	'''
@@ -41,6 +42,7 @@ class BatchLoader(ABC):
 		self.batch_overlap = batch_overlap
 		self.load_index = self.start + ext_mul(self.rank, self.batch_size - self.batch_overlap)
 		self.load_params_set = False
+		self.validated_data_distribution = False
 
 	@property
 	@abstractmethod
@@ -57,11 +59,64 @@ class BatchLoader(ABC):
 		'''
 		pass
 
+	def validate_distribution(self, total_size):
+		"""
+		Validate that all workers will get data with the current parameters.
+		Should be called when total_size is known (either from file metadata or after loading).
+		
+		Args:
+			total_size: The total size of the dataset
+			
+		Raises:
+			AssertionError: If the distribution is invalid
+		"""
+		if self.validated_data_distribution:
+			return
+			
+		# Only perform validation if the size is finite and known
+		if total_size is not None and total_size != np.inf:
+			is_valid = WorkerDistribution.validate_distribution(
+				total_size, self.batch_size, self.batch_overlap, self.n_workers)
+				
+			if not is_valid:
+				workers_without_data = WorkerDistribution.get_workers_without_data(
+					total_size, self.batch_size, self.batch_overlap, self.n_workers)
+				
+				error_msg = WorkerDistribution.format_error_message(
+					total_size, self.batch_size, self.batch_overlap, 
+					self.n_workers, workers_without_data)
+					
+				raise AssertionError(error_msg)
+				
+		self.validated_data_distribution = True
+
 	def load(self, files: Union[h5py.File, List[h5py.File]], time_offsets: Optional[List[int]]=None) -> Optional[Batch]:
 		'''
 		Load a chunk of data from the serialized file.
 		Should be called after serialize().
 		'''
+		# Check for total_size metadata and validate distribution
+		if not isinstance(files, list):
+			files_to_check = [files]
+		else:
+			files_to_check = files
+			
+		# First check for file metadata validation - uses centralized validation method
+		for file in files_to_check:
+			error_msg = WorkerDistribution.validate_file_metadata(
+				file, self.batch_size, self.batch_overlap, self.n_workers, self.rank)
+				
+			if error_msg is not None and self.rank == 0:
+				logger.warn(f"Data distribution validation failed: {error_msg}")
+				raise AssertionError(error_msg)
+			
+			# If we validated against metadata, mark as validated
+			if hasattr(file, 'attrs') and 'total_size' in file.attrs:
+				if self.rank == 0:
+					logger.debug(f"Data distribution validation passed: total_size={file.attrs['total_size']}")
+				self.validated_data_distribution = True
+				break
+		
 		# Set global loading state
 		if not self.load_params_set:
 			global_state.load_start = self.start
@@ -86,6 +141,14 @@ class BatchLoader(ABC):
 					data = self.loader.load(files, start=self.load_index, stop=next_stop, overlap=self.batch_overlap)
 				data = None if self.is_empty(data) else data
 			self.load_index += self.n_workers * (self.batch_size - self.batch_overlap) # Advance to next block for this worker 
+			
+			# Validate distribution after loading if we didn't already validate from metadata
+			if not self.validated_data_distribution and data is not None and self.rank == 0:
+				# Use an estimate from the current data
+				estimated_total_size = self.n_workers * (self.batch_size - self.batch_overlap) + self.batch_overlap
+				logger.debug(f"Using estimated total size for validation: {estimated_total_size}")
+				self.validate_distribution(estimated_total_size)
+				
 			return data
 
 	def compute_load_size(self, files: Union[h5py.File, List[h5py.File]]) -> Union[int, Dict[str, int]]:
@@ -100,7 +163,8 @@ class BatchLoader(ABC):
 				if size == 0:
 					size = f_size
 				else:
-					for k in f_size:
+					# Ensure consistent ordering by iterating through sorted keys
+					for k in sorted(f_size.keys()):
 						size[k] += f_size[k]
 			else:
 				raise TypeError('Unsupported file size type: {}'.format(type(f_size)))
@@ -109,7 +173,7 @@ class BatchLoader(ABC):
 		else:
 			return {
 				k: min(self.stop, size[k]) - self.start
-				for k in size
+				for k in sorted(size.keys())  # Sort for consistent ordering
 			}
 
 '''
@@ -133,7 +197,7 @@ class VMultiBatchLoader(BatchLoader):
 		return H5VMultiBatchSerializer
 
 	def is_empty(self, data: VMultiBatch) -> bool:
-		return all(item.size == 0 for item in data.items.values())
+		return all(item.size == 0 for _, item in sorted(data.items.items()))
 
 
 class LVMultiBatchLoader(BatchLoader):
@@ -143,7 +207,7 @@ class LVMultiBatchLoader(BatchLoader):
 		return H5LVMultiBatchSerializer
 
 	def is_empty(self, data: LVMultiBatch) -> bool:
-		return all(item.size == 0 for item in data.items.values())
+		return all(item.size == 0 for _, item in sorted(data.items.items()))
 
 
 class LLVMultiBatchLoader(BatchLoader):
@@ -153,7 +217,7 @@ class LLVMultiBatchLoader(BatchLoader):
 		return H5LLVMultiBatchSerializer
 
 	def is_empty(self, data: LLVMultiBatch) -> bool:
-		return all(item.size == 0 for item in data.items.values())
+		return all(item.size == 0 for _, item in sorted(data.items.items()))
 
 
 class SLLVMultiBatchLoader(BatchLoader):
@@ -163,7 +227,7 @@ class SLLVMultiBatchLoader(BatchLoader):
 		return H5SLLVMultiBatchSerializer
 
 	def is_empty(self, data: SLLVMultiBatch) -> bool:
-		return all(item.size == 0 for item in data.items.values())
+		return all(item.size == 0 for _, item in sorted(data.items.items()))
 
 
 class LTMultiBatchLoader(BatchLoader):
@@ -173,5 +237,5 @@ class LTMultiBatchLoader(BatchLoader):
 		return H5LTMultiBatchSerializer
 
 	def is_empty(self, data: LTMultiBatch) -> bool:
-		return all(item.size == 0 for item in data.items.values())
+		return all(item.size == 0 for _, item in sorted(data.items.items()))
 
