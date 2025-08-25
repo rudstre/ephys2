@@ -1,0 +1,33 @@
+name: Build Singularity SIF
+
+on:
+  workflow_dispatch:   # lets you trigger it manually in the GitHub UI
+  push:
+    branches: [ main ] # (optional) auto-run when pushing to main
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04   # GitHub Actions runners are x86_64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Apptainer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y software-properties-common
+          sudo add-apt-repository -y ppa:apptainer/ppa
+          sudo apt-get update
+          sudo apt-get install -y apptainer
+
+      - name: Make build script executable
+        run: chmod +x ./singularity/build-singularity.sh
+
+      - name: Run build script
+        run: ./singularity/build-singularity.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ephys2.sif
+          path: ephys2.sif
