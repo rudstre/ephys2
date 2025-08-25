@@ -170,7 +170,7 @@ setup_temp_folder() {
 # Function to fetch h5py patch
 fetch_h5py_patch() {
     start_step "Fetching h5py patch..."
-    PATCH_SOURCE_PATH="$(dirname $(dirname "$SCRIPT_DIR"))/internal/singularity/h5py.patch"
+    PATCH_SOURCE_PATH="$(dirname "$(dirname "$SCRIPT_DIR")")/singularity/internal/h5py.patch"
     PATCH_DEST_PATH="$SCRIPT_DIR/deps/h5py.patch"
     if [ -f "$PATCH_SOURCE_PATH" ]; then
         cp "$PATCH_SOURCE_PATH" "$PATCH_DEST_PATH" >> "$LOG_FILE" 2>&1

@@ -88,7 +88,7 @@ Add to your ephys2 pipeline configuration:
     batch_overlap: 0
     aux_channels:
       - digital_in: [0]  # Intan digital channel with Teensy signal
-        name: decoded_digital_in.h5
+        name: teensy_digital_in.h5
         decode_teensy: true  # <----- treats this as an input that needs to be decoded
         baud_rate: 3000 # <------ should always be 3000 to match the 30kHz intan sampling rate
 ```
@@ -97,14 +97,49 @@ The system will automatically:
 - Decode the multiplexed signal
 - Separate events by original channel
 - Provide precise timestamps for each behavioral event
-- Save results as `decoded_digital_in_teensy.h5`
+- Save results as 
+  - `teensy_digital_in.h5` AND
+  - `teensy_digital_in_decoded.h5`
+
+#### Multiple Digital Inputs
+You can process both Teensy-decoded and regular digital inputs simultaneously in the same pipeline:
+
+```yaml
+- input.rhd2000:
+    sessions: /path/to/your/data.rhd
+    datetime_pattern: "*_%y%m%d_%H%M%S"
+    batch_size: 450000
+    batch_overlap: 0
+    aux_channels:
+      # Teensy-decoded multiplexed input (e.g., multiple behavioral channels)
+      - digital_in: [0]  # Intan digital channel with Teensy signal
+        name: teensy_digital_in.h5
+        decode_teensy: true
+        baud_rate: 3000
+      
+      # Regular digital input (e.g., stimulus markers)
+      - digital_in: [1]  # Regular digital channel
+        name: raw_digital_in.h5
+        # No decode_teensy parameter = regular rising-edge detection
+```
+
+This configuration will produce:
+- `session_0_teensy_digital_in.h5` - regular rising-edge events from channel 0
+- `session_0_teensy_digital_in_decoded.h5` - decoded Teensy events (channels 1-4)
+- `session_0_raw_digital_in.h5` - regular rising-edge events from channel 1
+
+**Use Cases:**
+- **Behavioral + Stimulus**: Teensy for complex behavioral events, regular input for stimulus presentation
+- **Multiple Systems**: Different Teensy systems on different channels
+- **Backup Recording**: Regular recording of the raw Teensy signal alongside decoded events
+- **Mixed Signals**: Some channels need multiplexing, others are simple TTL signals
 
 ## Understanding the Output
 
 After decoding, you'll get separate event files for each channel:
 
 ```
-session_0_decoded_digital_in_teensy.h5
+session_0_teensy_digin_decoded.h5
 ├── channel_1/  # Heartbeat events
 │   └── time: [timestamps of heartbeat signals]
 ├── channel_2/  # Lever 1 events  

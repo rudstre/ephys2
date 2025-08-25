@@ -82,7 +82,7 @@ class RHDAuxStage(ProcessingStage):
         # Whether auxiliary serializers are enabled
         self.digital_in = False
         self.analog_in = False
-        self.decode_teensy = False
+        self.has_teensy_decode = False
 
         super(type(self), self).initialize()
 
@@ -104,30 +104,41 @@ class RHDAuxStage(ProcessingStage):
             except Exception as e:
                 logger.error(f"Failed to create output directory {self.aux_output_dir}: {e}")
 
+        # Store configurations for each auxiliary channel type
+        self.digital_configs = []  # List of digital input configurations
+        self.analog_configs = []   # List of analog input configurations
+        
         # Create serializers for auxiliary data as needed
-        self.digital_chs = []
         self.digital_serializers = []
-        self.analog_chs = []
         self.analog_serializers = []
-        self.uart_serializers = {}  # Dictionary keyed by session index
-        for aux_decl in self.cfg["aux_channels"]:
+        self.uart_serializers = {}  # Dictionary keyed by (config_idx, session_idx)
+        
+        for config_idx, aux_decl in enumerate(self.cfg["aux_channels"]):
 
             if "digital_in" in aux_decl:
                 assert (
                     self.cfg["batch_overlap"] == 0
                 ), "batch_overlap must be zero for aux"
-                # rising-edge digital
-                self.digital_chs = np.array(aux_decl["digital_in"], dtype=np.intp)
-                self.digital_in = True
-                # optional UART decode flag
-                self.decode_teensy = bool(aux_decl.get("decode_teensy", False))
-                if self.decode_teensy:
+                
+                # Store this digital configuration
+                digital_config = {
+                    'channels': np.array(aux_decl["digital_in"], dtype=np.intp),
+                    'name': aux_decl["name"],
+                    'decode_teensy': bool(aux_decl.get("decode_teensy", False)),
+                    'baud_rate': aux_decl.get("baud_rate", 3000),
+                    'config_idx': config_idx
+                }
+                
+                if digital_config['decode_teensy']:
                     assert (
-                        len(self.digital_chs) == 1
+                        len(digital_config['channels']) == 1
                     ), "decode_teensy supports exactly one digital pin"
-                    self.baud_rate = aux_decl.get("baud_rate", 3000)
-                # create serializers per session
+                    self.has_teensy_decode = True
+                
+                self.digital_configs.append(digital_config)
+                self.digital_in = True
 
+                # Create serializers per session for this configuration
                 for i, path in enumerate(global_metadata["session_paths"]):
                     # Use custom output directory if provided
                     output_path = self.aux_output_dir if self.aux_output_dir else path
@@ -143,10 +154,11 @@ class RHDAuxStage(ProcessingStage):
                     )
                     s.initialize(os.path.join(output_path, f'session_{i}_{aux_decl["name"]}'))
                     self.digital_serializers.append(s)
+                    
                     # UART decode serializer if requested
-                    if self.decode_teensy:
+                    if digital_config['decode_teensy']:
                         base, ext = os.path.splitext(aux_decl["name"])
-                        uart_name = f"{base}_teensy{ext}"
+                        uart_name = f"{base}_decoded{ext}"
                         # use TMultiBatchSerializer to write event times per channel
                         ts = H5TMultiBatchSerializer(
                             full_check=global_state.debug,
@@ -154,16 +166,24 @@ class RHDAuxStage(ProcessingStage):
                             n_workers=self.n_workers,
                         )
                         ts.initialize(os.path.join(output_path, f"session_{i}_{uart_name}"))
-                        self.uart_serializers[i] = ts  # Store with session index as key
+                        self.uart_serializers[(config_idx, i)] = ts
 
             if "analog_in" in aux_decl:
                 assert (
                     self.cfg["batch_overlap"] == 0
                 ), "nonzero batch_overlap not supported with aux channel persistence, for now"
-                self.analog_ds = aux_decl["downsample"]
-                self.analog_chs = (
-                    np.array(aux_decl["analog_in"], dtype=np.intp) - 1
-                )  # Analog is 1-indexed
+                
+                # Store this analog configuration  
+                analog_config = {
+                    'channels': np.array(aux_decl["analog_in"], dtype=np.intp) - 1,  # Analog is 1-indexed
+                    'name': aux_decl["name"],
+                    'downsample': aux_decl["downsample"],
+                    'config_idx': config_idx
+                }
+                
+                self.analog_configs.append(analog_config)
+                self.analog_in = True
+                
                 for i, path in enumerate(global_metadata["session_paths"]):
                     # Use custom output directory if provided
                     output_path = self.aux_output_dir if self.aux_output_dir else path
@@ -179,15 +199,14 @@ class RHDAuxStage(ProcessingStage):
                     s.initialize(os.path.join(output_path, f'session_{i}_{aux_decl["name"]}'))
                     self.analog_serializers.append(s)
 
-        # Initialize full-session TTL buffers if UART decode is enabled
-        if self.decode_teensy:
-            # prepare raw TTL signal and time accumulators per session
-            self.ttl_signal_accum = {
-                i: np.array([], dtype=int) for i in self.uart_serializers.keys()
-            }
-            self.ttl_time_accum = {
-                i: np.array([], dtype=int) for i in self.uart_serializers.keys()
-            }
+        # Initialize full-session TTL buffers if any UART decode is enabled
+        if self.has_teensy_decode:
+            # prepare raw TTL signal and time accumulators per (config_idx, session)
+            self.ttl_signal_accum = {}
+            self.ttl_time_accum = {}
+            for (config_idx, session_idx) in self.uart_serializers.keys():
+                self.ttl_signal_accum[(config_idx, session_idx)] = np.array([], dtype=int)
+                self.ttl_time_accum[(config_idx, session_idx)] = np.array([], dtype=int)
 
     def validate_aux_metadata(self, header: Optional[dict] = None):
         for aux_decl in self.cfg["aux_channels"]:
@@ -196,9 +215,8 @@ class RHDAuxStage(ProcessingStage):
                     assert (
                         len(header["board_dig_in_channels"]) > 0
                     ), "No digital inputs in header"
-                self.dio_chs = np.array(aux_decl["digital_in"], dtype=np.intp)
+                # Note: removed global variable assignments since we now use config objects
                 self.digital_in = True
-                self.decode_teensy = bool(aux_decl.get("decode_teensy", False))
             if "analog_in" in aux_decl:
                 if not (header is None):
                     h_anains = [
@@ -209,7 +227,6 @@ class RHDAuxStage(ProcessingStage):
                         possible_channel_names = [f"{prefix}-AUX{ch}" for prefix in ["A", "B", "C", "D"]]
                         assert any(name in h_anains for name in possible_channel_names), \
                             f"Aux analog input {ch} (tried prefixes A,B,C,D) was not found in the enabled ones:\n\t{h_anains}"
-                self.aio_chs = np.array(aux_decl["analog_in"], dtype=np.intp) - 1
                 self.analog_in = True
 
     def capture_dio(
@@ -219,29 +236,65 @@ class RHDAuxStage(ProcessingStage):
         time: np.ndarray,
         start_offset: int,
     ):
-        # Save digital in
+        # Save digital in for each configuration
         if digital_data.size > 0:
-            items = dict()
-            for ch in self.digital_chs:
-                # Indices of lo -> hi
-                # Convention is that any leading 1 is ignored.
-                mask = np.diff((digital_data & (1 << ch))) == 1
-                items[str(ch)] = TBatch(
-                    time=time[(1 - start_offset) :][mask], overlap=0  # Change times
-                )
-            self.digital_batches[md.session].append(TMultiBatch(items=items))
-            # optional: accumulate raw TTL for full-session UART decoding
-            if self.decode_teensy:
-                ch = int(self.digital_chs[0])
-                raw_ttl = ((digital_data & (1 << ch)) > 0).astype(int)
-                aligned_signal = raw_ttl[start_offset:]
-                aligned_times = time
-                self.ttl_signal_accum[md.session] = np.concatenate(
-                    [self.ttl_signal_accum[md.session], aligned_signal]
-                )
-                self.ttl_time_accum[md.session] = np.concatenate(
-                    [self.ttl_time_accum[md.session], aligned_times]
-                )
+            for config_idx, digital_config in enumerate(self.digital_configs):
+                items = dict()
+                
+                for ch in digital_config['channels']:
+                    # Map requested channel number to actual native_order from header
+                    native_ch = None
+                    if hasattr(md, 'header') and 'board_dig_in_channels' in md.header:
+                        for header_ch in md.header['board_dig_in_channels']:
+                            if header_ch['native_order'] == ch:
+                                native_ch = ch
+                                break
+                    
+                    # If no mapping found, use the requested channel number directly
+                    if native_ch is None:
+                        native_ch = ch
+                    
+                    # Indices of lo -> hi
+                    # Convention is that any leading 1 is ignored.
+                    # Build boolean signal then detect 0->1 transitions across chunk boundary
+                    sig = (digital_data & (1 << native_ch)) > 0
+                    mask = (~sig[:-1]) & (sig[1:])
+                    
+                    items[str(ch)] = TBatch(
+                        time=time[(1 - start_offset) :][mask], overlap=0  # Change times
+                    )
+                
+                # Get the corresponding serializer index
+                serializer_idx = config_idx
+                self.digital_batches[serializer_idx].append(TMultiBatch(items=items))
+                
+                # optional: accumulate raw TTL for full-session UART decoding
+                if digital_config['decode_teensy']:
+                    ch = int(digital_config['channels'][0])
+                    # Use the same native_order mapping for UART decoding
+                    native_ch = None
+                    if hasattr(md, 'header') and 'board_dig_in_channels' in md.header:
+                        for header_ch in md.header['board_dig_in_channels']:
+                            if header_ch['native_order'] == ch:
+                                native_ch = ch
+                                break
+                    
+                    if native_ch is None:
+                        native_ch = ch
+                    
+                    raw_ttl = ((digital_data & (1 << native_ch)) > 0).astype(int)
+                    aligned_signal = raw_ttl[start_offset:]
+                    aligned_times = time
+                    
+                    key = (config_idx, md.session)
+                    self.ttl_signal_accum[key] = np.concatenate(
+                        [self.ttl_signal_accum[key], aligned_signal]
+                    )
+                    self.ttl_time_accum[key] = np.concatenate(
+                        [self.ttl_time_accum[key], aligned_times]
+                    )
+        else:
+            pass
 
     def capture_aio(
         self,
@@ -251,33 +304,41 @@ class RHDAuxStage(ProcessingStage):
         start_offset: int,
         fs: int,
     ):
-        # Save analog in
+        # Save analog in for each configuration
         if analog_data.size > 0:
-            analog_time = time
-            analog_data = analog_data[start_offset:, self.analog_chs]
-            if self.analog_ds > 1:
-                mask = time % self.analog_ds == 0
-                analog_time = analog_time[mask]
-                analog_data = analog_data[mask]
-            assert analog_time.shape[0] == analog_data.shape[0]
-            self.analog_batches[md.session].append(
-                SBatch(
-                    time=analog_time,
-                    data=analog_data,
-                    overlap=0,
-                    fs=fs,  # Although analog data is downsampled, the timestamps reflect the original sampling rate.
+            for config_idx, analog_config in enumerate(self.analog_configs):
+                analog_time = time
+                config_analog_data = analog_data[start_offset:, analog_config['channels']]
+                if analog_config['downsample'] > 1:
+                    mask = time % analog_config['downsample'] == 0
+                    analog_time = analog_time[mask]
+                    config_analog_data = config_analog_data[mask]
+                assert analog_time.shape[0] == config_analog_data.shape[0]
+                
+                # Get the corresponding serializer index (offset by number of digital configs)
+                serializer_idx = len(self.digital_configs) + config_idx
+                self.analog_batches[config_idx].append(
+                    SBatch(
+                        time=analog_time,
+                        data=config_analog_data,
+                        overlap=0,
+                        fs=fs,  # Although analog data is downsampled, the timestamps reflect the original sampling rate.
+                    )
                 )
-            )
 
     def initialize_aux_batches(self):
-        self.digital_batches = [
-            TMultiBatch(items={str(ch): TBatch.empty() for ch in self.digital_chs})
-            for _ in self.digital_serializers
-        ]
-        self.analog_batches = [
-            SBatch.empty(len(self.analog_chs), global_metadata["sampling_rate"])
-            for _ in self.analog_serializers
-        ]
+        # Initialize batches for each digital configuration
+        self.digital_batches = []
+        for digital_config in self.digital_configs:
+            batch = TMultiBatch(items={str(ch): TBatch.empty() for ch in digital_config['channels']})
+            self.digital_batches.append(batch)
+        
+        # Initialize batches for each analog configuration  
+        self.analog_batches = []
+        for analog_config in self.analog_configs:
+            batch = SBatch.empty(len(analog_config['channels']), global_metadata["sampling_rate"])
+            self.analog_batches.append(batch)
+        
         # No per-chunk UART batch writing; full-session decode in finalize
 
     def write_aux_batches(self):
@@ -299,22 +360,27 @@ class RHDAuxStage(ProcessingStage):
 
     def finalize(self):
         # Persist final aux data
-        if not (self.digital_serializers is None):
+        if self.digital_serializers:
             for s in self.digital_serializers:
                 s.serialize()
                 s.cleanup()
                 logger.print(f"Wrote digital out file: {s.out_path}")
-        if not (self.analog_serializers is None):
+        if self.analog_serializers:
             for s in self.analog_serializers:
                 s.serialize()
                 s.cleanup()
                 logger.print(f"Wrote analog out file: {s.out_path}")
-        if self.decode_teensy:
+        
+        if self.has_teensy_decode:
             comm = MPI.COMM_WORLD
             fs = global_metadata["sampling_rate"]
-            for session_idx, serializer in self.uart_serializers.items():
-                local_signal = self.ttl_signal_accum.get(session_idx, np.array([], dtype=int))
-                local_times  = self.ttl_time_accum.get(session_idx, np.array([], dtype=int))
+            
+            for (config_idx, session_idx), serializer in self.uart_serializers.items():
+                # Get the configuration for this UART serializer
+                digital_config = self.digital_configs[config_idx]
+                
+                local_signal = self.ttl_signal_accum.get((config_idx, session_idx), np.array([], dtype=int))
+                local_times  = self.ttl_time_accum.get((config_idx, session_idx), np.array([], dtype=int))
                 all_signals  = comm.gather(local_signal, root=0)
                 all_times    = comm.gather(local_times, root=0)
                 if comm.Get_rank() == 0:
@@ -330,7 +396,7 @@ class RHDAuxStage(ProcessingStage):
                     if ts_signal.size == 0:
                         events = {}
                     else:
-                        decoded_bytes, rel_times = decode_uart_from_ttl(ts_signal, fs, self.baud_rate)
+                        decoded_bytes, rel_times = decode_uart_from_ttl(ts_signal, fs, digital_config['baud_rate'])
                         abs_times = ts_times[rel_times]
                         packets   = decode_serial_packets(decoded_bytes, abs_times)
                         events    = {}
@@ -365,6 +431,6 @@ class RHDAuxStage(ProcessingStage):
         for s in (
             self.digital_serializers
             + self.analog_serializers
-            + self.uart_serializers.values()
+            + list(self.uart_serializers.values())
         ):
             s.cleanup()

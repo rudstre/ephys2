@@ -10,4 +10,4 @@ fi
 OUTPUT_IMAGE=${1:-"ephys2.sif"}
 DEF_FILE=./singularity/mpi.def
 
-sudo singularity build --force "$OUTPUT_IMAGE" "$DEF_FILE"
+singularity build --force "$OUTPUT_IMAGE" "$DEF_FILE"
